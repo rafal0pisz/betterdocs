@@ -89,6 +89,25 @@ export default function PortalSidebar({ client, sections, slug }: Props) {
       </nav>
 
 
+
+      {/* Status zdarzeń */}
+      <div className="px-2 pb-1" style={{ borderTop: '1px solid #f3f4f6', paddingTop: '8px' }}>
+        <Link
+          href={`/portal/${slug}/status`}
+          className="flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm transition-colors"
+          style={pathname === `/portal/${slug}/status`
+            ? { backgroundColor: '#FFF0F0', color: ACCENT }
+            : { color: '#6b7280' }
+          }
+        >
+          <span className="shrink-0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+          </span>
+          <span className="truncate">Status zdarzeń</span>
+        </Link>
+      </div>
       {/* Tabela eventów */}
       <div className="px-2 pb-1" style={{ borderTop: '1px solid #f3f4f6', paddingTop: '8px' }}>
         <Link
