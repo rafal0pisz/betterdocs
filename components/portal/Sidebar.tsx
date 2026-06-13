@@ -62,7 +62,7 @@ export default function PortalSidebar({ client, sections, slug }: Props) {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3">
         <p className="px-2 mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
-          Documentation
+          Sections
         </p>
         {sections.map((section) => {
           const href = `/portal/${slug}/${section.id}`
