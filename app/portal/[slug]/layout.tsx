@@ -17,7 +17,7 @@ export default async function PortalLayout({ params, children }: Props) {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <PortalSidebar client={client} sections={sections} slug={slug} />
-      <main className="flex-1 min-w-0">
+      <main className="flex-1 min-w-0 pt-14 md:pt-0">
         {children}
       </main>
     </div>

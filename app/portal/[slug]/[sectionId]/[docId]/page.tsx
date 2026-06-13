@@ -30,7 +30,7 @@ export default async function DocumentPage({ params }: Props) {
   if (!client || !section || !document) notFound()
 
   return (
-    <div className="max-w-3xl mx-auto px-8 py-10">
+    <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-gray-400 mb-6">
         <Link href={`/portal/${slug}`} className="hover:text-gray-600 transition-colors">

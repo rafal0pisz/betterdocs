@@ -48,7 +48,7 @@ export default async function PortalOverviewPage({ params }: Props) {
   const latestDocs = recentDocs.slice(0, 5)
 
   return (
-    <div className="max-w-3xl mx-auto px-8 py-10">
+    <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-gray-900 mb-1">

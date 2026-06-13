@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import type { Client, Section } from '@/types'
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -20,21 +21,21 @@ function Icon({ name }: { name: string }) {
   return ICONS[name] ?? ICONS['ti-file']
 }
 
-type Props = {
-  client: Client
-  sections: Section[]
-  slug: string
-}
-
 const ACCENT = '#FF8282'
+
+type Props = { client: Client; sections: Section[]; slug: string }
 
 export default function PortalSidebar({ client, sections, slug }: Props) {
   const pathname = usePathname()
+  const [open, setOpen] = useState(false)
 
-  return (
-    <aside className="w-56 shrink-0 bg-white border-r border-gray-100 flex flex-col h-screen sticky top-0">
+  // Zamknij menu po zmianie strony
+  useEffect(() => { setOpen(false) }, [pathname])
+
+  const navContent = (
+    <>
       {/* Header */}
-      <div className="px-4 py-4 border-b border-gray-100">
+      <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-semibold shrink-0"
@@ -47,6 +48,15 @@ export default function PortalSidebar({ client, sections, slug }: Props) {
             <p className="text-xs text-gray-400">Portal analityczny</p>
           </div>
         </div>
+        {/* Przycisk zamknięcia na mobile */}
+        <button
+          onClick={() => setOpen(false)}
+          className="md:hidden p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
       </div>
 
       {/* Nav */}
@@ -99,6 +109,52 @@ export default function PortalSidebar({ client, sections, slug }: Props) {
           Powered by <span className="font-medium text-gray-500">Bettersteps</span>
         </p>
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Mobile topbar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-semibold shrink-0"
+            style={{ backgroundColor: client.accent_color || ACCENT }}
+          >
+            {client.name.slice(0, 2).toUpperCase()}
+          </div>
+          <p className="text-sm font-medium text-gray-900 truncate">{client.name}</p>
+        </div>
+        <button
+          onClick={() => setOpen(true)}
+          className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+          aria-label="Otwórz menu"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* Mobile overlay */}
+      {open && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/40"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
+      {/* Mobile drawer */}
+      <div className={`md:hidden fixed top-0 left-0 bottom-0 z-50 w-64 bg-white flex flex-col transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+        {navContent}
+      </div>
+
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-56 shrink-0 bg-white border-r border-gray-100 flex-col h-screen sticky top-0">
+        {navContent}
+      </aside>
+    </>
   )
 }
