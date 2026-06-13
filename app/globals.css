@@ -98,3 +98,15 @@
   .doc-body table.event-table tr:first-child td:first-child {
     width: 160px;
   }
+
+  /* Oznaczenie Event w edytorze */
+  .doc-body p.event-label {
+    @apply font-mono font-semibold text-sm;
+    color: #FF8282;
+    background: #FFF0F0;
+    border-left: 3px solid #FF8282;
+    padding: 4px 10px;
+    border-radius: 0 6px 6px 0;
+    margin-bottom: 4px;
+    display: inline-block;
+  }

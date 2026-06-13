@@ -14,7 +14,7 @@ import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Document } from '@/types'
-import { EventTable, EventTableRow, EventTableCell, insertEventTable, parseEventsFromHtml } from '@/lib/tiptap/EventTableExtension'
+import { EventLabel } from '@/lib/tiptap/EventTableExtension'
 
 const lowlight = createLowlight(common)
 
@@ -46,6 +46,7 @@ function addHeadingIds(html: string): string {
 }
 
 function generateToc(html: string): string {
+  if (typeof window === 'undefined') return ''
   const parser = new DOMParser()
   const doc = parser.parseFromString(html, 'text/html')
   const headings = doc.querySelectorAll('h2, h3')
@@ -77,7 +78,7 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
       Table.configure({ resizable: true }),
       TableRow, TableHeader, TableCell,
       CodeBlockLowlight.configure({ lowlight, defaultLanguage: 'javascript' }),
-      EventTable, EventTableRow, EventTableCell,
+      EventLabel,
     ],
     content: document.body ?? '',
     editorProps: { attributes: { class: 'doc-body outline-none min-h-[400px]' } },
@@ -100,36 +101,6 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
     setShowLinkInput(false)
   }, [editor, linkUrl])
 
-  // Zapisuje eventy z tabel eventowych do Supabase
-  const syncEvents = useCallback(async (html: string, docId: string) => {
-    const events = parseEventsFromHtml(html)
-    if (events.length === 0) return
-
-    const supabase = createClient()
-    // Usuń stare eventy powiązane z tym dokumentem przez description zawierające doc_id
-    // Używamy custom field w opisie aby powiązać event z dokumentem
-    await supabase
-      .from('events')
-      .delete()
-      .eq('client_id', document.client_id)
-      .eq('section_id', document.section_id)
-      .like('description', `[doc:${docId}]%`)
-
-    if (events.length > 0) {
-      await supabase.from('events').insert(
-        events.map((e, i) => ({
-          client_id: document.client_id,
-          section_id: document.section_id,
-          name: e.name,
-          description: `[doc:${docId}] ${e.description}`,
-          status: 'Planned' as const,
-          is_published: true,
-          order_index: i,
-        }))
-      )
-    }
-  }, [document])
-
   const handleSave = useCallback(async (publish?: boolean) => {
     if (!editor) return
     setSaving(true)
@@ -140,32 +111,22 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
     const shouldPublish = publish !== undefined ? publish : isPublished
 
     const payload = {
-      title,
-      body,
-      is_published: shouldPublish,
-      section_id: document.section_id,
-      client_id: document.client_id,
+      title, body, is_published: shouldPublish,
+      section_id: document.section_id, client_id: document.client_id,
     }
-
-    let docId = document.id
 
     if (isNew) {
       const { data, error } = await supabase.from('documents').insert(payload).select().single()
-      if (!error && data) {
-        docId = data.id
-        await syncEvents(body, data.id)
-        router.replace(`/admin/clients/${clientId}/${document.section_id}/${data.id}`)
-      }
+      if (!error && data) router.replace(`/admin/clients/${clientId}/${document.section_id}/${data.id}`)
     } else {
       await supabase.from('documents').update(payload).eq('id', document.id!)
-      await syncEvents(body, document.id!)
       if (publish !== undefined) setIsPublished(publish)
     }
 
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
-  }, [editor, title, isPublished, document, clientId, isNew, router, syncEvents])
+  }, [editor, title, isPublished, document, clientId, isNew, router])
 
   if (!editor) return null
 
@@ -177,7 +138,6 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
         className="text-2xl font-semibold text-gray-900 bg-transparent border-0 outline-none placeholder-gray-300 w-full"
       />
 
-      {/* Toolbar */}
       <div className="flex items-center gap-0.5 p-1.5 bg-white border border-gray-100 rounded-lg flex-wrap">
         <Btn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Pogrubienie">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></svg>
@@ -194,6 +154,10 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
         </Btn>
         <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} title="H3">
           <span className="text-xs font-bold">H3</span>
+        </Btn>
+        {/* Przycisk Event */}
+        <Btn onClick={() => editor.chain().focus().setNode('eventLabel').run()} active={editor.isActive('eventLabel')} title="Oznacz jako Event GA4">
+          <span className="text-xs font-bold" style={{ color: editor.isActive('eventLabel') ? 'white' : '#FF8282' }}>EV</span>
         </Btn>
         <Divider />
         <Btn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Lista punktowana">
@@ -227,11 +191,6 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
           </>
         )}
         <Divider />
-        {/* Tabela Eventów */}
-        <Btn onClick={() => insertEventTable(editor)} active={editor.isActive('eventTable')} title="Wstaw Tabelę Eventów">
-          <span className="text-xs font-bold" style={{ color: editor.isActive('eventTable') ? undefined : '#FF8282' }}>ET</span>
-        </Btn>
-        <Divider />
         <Btn onClick={handleInsertToc} title="Spis treści" active={false}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
         </Btn>
@@ -244,7 +203,6 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
         </Btn>
       </div>
 
-      {/* Link input */}
       {showLinkInput && (
         <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400 shrink-0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -256,12 +214,10 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
         </div>
       )}
 
-      {/* Edytor */}
       <div className="bg-white border border-gray-100 rounded-xl px-8 py-6">
         <EditorContent editor={editor} />
       </div>
 
-      {/* Akcje */}
       <div className="flex items-center gap-3">
         <button onClick={() => handleSave()} disabled={saving}
           className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50">
