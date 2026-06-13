@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient as createSupabaseClient } from '@/lib/supabase/server'
 import type { Client, Section, Document, GAEvent } from '@/types'
+import DeleteClientButton from '@/components/admin/DeleteClientButton'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -62,6 +63,7 @@ export default async function AdminClientPage({ params }: Props) {
             </a>
           </div>
         </div>
+        <DeleteClientButton clientId={client.id} clientName={client.name} />
       </div>
 
       <div className="space-y-4">
