@@ -13,6 +13,7 @@ export type Section = {
   id: string
   client_id: string
   title: string
+  slug: string
   icon: string
   order_index: number
   is_visible: boolean
@@ -25,6 +26,7 @@ export type Document = {
   section_id: string
   client_id: string
   title: string
+  slug: string
   body: string | null
   order_index: number
   is_published: boolean
