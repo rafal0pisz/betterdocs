@@ -1,0 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Prose styles dla treści dokumentów */
+  .doc-body h1 { @apply text-2xl font-semibold text-gray-900 mt-8 mb-4; }
+  .doc-body h2 { @apply text-xl font-semibold text-gray-900 mt-6 mb-3; }
+  .doc-body h3 { @apply text-base font-semibold text-gray-900 mt-5 mb-2; }
+  .doc-body p  { @apply text-gray-700 leading-relaxed mb-4; }
+  .doc-body ul { @apply list-disc list-inside mb-4 text-gray-700 space-y-1; }
+  .doc-body ol { @apply list-decimal list-inside mb-4 text-gray-700 space-y-1; }
+  .doc-body li { @apply leading-relaxed; }
+  .doc-body a  { @apply text-blue-600 underline underline-offset-2 hover:text-blue-800; }
+  .doc-body strong { @apply font-semibold text-gray-900; }
+  .doc-body code {
+    @apply bg-gray-100 text-gray-800 text-sm px-1.5 py-0.5 rounded font-mono;
+  }
+  .doc-body pre {
+    @apply bg-gray-900 text-gray-100 rounded-lg p-4 mb-4 overflow-x-auto text-sm;
+  }
+  .doc-body pre code { @apply bg-transparent text-gray-100 p-0; }
+  .doc-body blockquote {
+    @apply border-l-4 border-gray-200 pl-4 italic text-gray-600 mb-4;
+  }
+  .doc-body table { @apply w-full text-sm mb-4; }
+  .doc-body th { @apply text-left font-medium text-gray-700 border-b border-gray-200 pb-2 pr-4; }
+  .doc-body td { @apply text-gray-700 border-b border-gray-100 py-2 pr-4; }
+  .doc-body hr { @apply border-gray-200 my-6; }
+}
+
+  /* Tabele w edytorze */
+  .doc-body table {
+    @apply w-full text-sm mb-4 border-collapse;
+  }
+  .doc-body th {
+    @apply text-left font-medium text-gray-700 bg-gray-50 border border-gray-200 px-3 py-2;
+  }
+  .doc-body td {
+    @apply text-gray-700 border border-gray-200 px-3 py-2;
+  }
+  .doc-body .selectedCell {
+    @apply bg-blue-50;
+  }
+
+  /* Blok kodu z podświetlaniem */
+  .doc-body pre {
+    @apply bg-gray-900 text-gray-100 rounded-lg p-4 mb-4 overflow-x-auto text-sm;
+  }
+  .doc-body pre code {
+    @apply bg-transparent text-gray-100 p-0 font-mono;
+  }
+  .hljs-keyword { @apply text-purple-400; }
+  .hljs-string  { @apply text-green-400; }
+  .hljs-comment { @apply text-gray-500; }
+  .hljs-number  { @apply text-orange-400; }
+  .hljs-function { @apply text-blue-400; }
+  .hljs-variable { @apply text-red-400; }
+  .hljs-built_in { @apply text-yellow-400; }
