@@ -55,3 +55,35 @@ export async function getAllDocumentsForClient(clientId: string): Promise<Docume
     .order('updated_at', { ascending: false })
   return data ?? []
 }
+
+export async function getEventsForSection(sectionId: string) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('events')
+    .select('*, event_parameters(*)')
+    .eq('section_id', sectionId)
+    .eq('is_published', true)
+    .order('order_index')
+  return data ?? []
+}
+
+export async function getAllEventsForClient(clientId: string) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('events')
+    .select('*, event_parameters(*)')
+    .eq('client_id', clientId)
+    .eq('is_published', true)
+    .order('name')
+  return data ?? []
+}
+
+export async function getEventById(id: string) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('events')
+    .select('*, event_parameters(*)')
+    .eq('id', id)
+    .single()
+  return data
+}
