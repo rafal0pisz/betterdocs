@@ -10,13 +10,12 @@ import TableHeader from '@tiptap/extension-table-header'
 import TableCell from '@tiptap/extension-table-cell'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { common, createLowlight } from 'lowlight'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Document } from '@/types'
 import EventsTableModal, { type EventRow } from './EventsTableModal'
 import ParametersTableModal, { type ParamRow } from './ParametersTableModal'
-import { renderEventsTableHtml, renderParametersTableHtml, parseStructuredEventsFromHtml } from '@/lib/table-renderers'
 
 const lowlight = createLowlight(common)
 
@@ -63,6 +62,12 @@ function generateToc(html: string): string {
   return `<ul class="toc">\n${items}\n</ul>`
 }
 
+const STATUS_COLORS: Record<string, string> = {
+  'Planned':     'bg-amber-100 text-amber-700',
+  'Implemented': 'bg-green-100 text-green-700',
+  'To verify':   'bg-blue-50 text-blue-600',
+}
+
 export default function DocumentEditor({ document, clientId, isNew = false }: Props) {
   const router = useRouter()
   const [title, setTitle] = useState(document.title ?? '')
@@ -71,8 +76,29 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
   const [saved, setSaved] = useState(false)
   const [linkUrl, setLinkUrl] = useState('')
   const [showLinkInput, setShowLinkInput] = useState(false)
+
+  // Events & Params state (live outside editor)
+  const [eventRows, setEventRows] = useState<EventRow[]>([])
+  const [paramRows, setParamRows] = useState<ParamRow[]>([])
   const [showEventsModal, setShowEventsModal] = useState(false)
   const [showParamsModal, setShowParamsModal] = useState(false)
+  const [docId, setDocId] = useState<string | undefined>(document.id)
+
+  // Load existing events/params on mount
+  useEffect(() => {
+    if (!document.id) return
+    const supabase = createClient()
+    supabase.from('structured_events').select('*').eq('document_id', document.id).order('order_index').then(({ data }) => {
+      if (data) setEventRows(data.map((e: any) => ({
+        _key: e.id, name: e.name, is_custom: e.is_custom, description: e.description ?? '', status: e.status,
+      })))
+    })
+    supabase.from('structured_parameters').select('*').eq('document_id', document.id).order('order_index').then(({ data }) => {
+      if (data) setParamRows(data.map((p: any) => ({
+        _key: p.id, name: p.name, description: p.description ?? '', type: p.type, example_value: p.example_value ?? '', status: p.status,
+      })))
+    })
+  }, [document.id])
 
   const editor = useEditor({
     extensions: [
@@ -86,18 +112,6 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
     content: document.body ?? '',
     editorProps: { attributes: { class: 'doc-body outline-none min-h-[400px]' } },
   })
-
-  function handleInsertEventsTable(rows: EventRow[]) {
-    if (!editor) return
-    const html = renderEventsTableHtml(rows)
-    editor.chain().focus().insertContent(html).run()
-  }
-
-  function handleInsertParamsTable(rows: ParamRow[]) {
-    if (!editor) return
-    const html = renderParametersTableHtml(rows)
-    editor.chain().focus().insertContent(html).run()
-  }
 
   const handleInsertToc = useCallback(() => {
     if (!editor) return
@@ -116,56 +130,59 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
     setShowLinkInput(false)
   }, [editor, linkUrl])
 
-  const syncStructuredEvents = useCallback(async (html: string, docId: string) => {
+  const saveEventsAndParams = useCallback(async (currentDocId: string, events: EventRow[], params: ParamRow[]) => {
     const supabase = createClient()
-    const events = parseStructuredEventsFromHtml(html, document.client_id, docId)
-    await supabase.from('structured_events').delete().eq('document_id', docId)
+    await supabase.from('structured_events').delete().eq('document_id', currentDocId)
+    await supabase.from('structured_parameters').delete().eq('document_id', currentDocId)
     if (events.length > 0) {
-      await supabase.from('structured_events').insert(events)
+      await supabase.from('structured_events').insert(events.map((e, i) => ({
+        client_id: document.client_id, document_id: currentDocId,
+        name: e.name, is_custom: e.is_custom, description: e.description, status: e.status, order_index: i,
+      })))
+    }
+    if (params.length > 0) {
+      await supabase.from('structured_parameters').insert(params.map((p, i) => ({
+        client_id: document.client_id, document_id: currentDocId,
+        name: p.name, description: p.description, type: p.type, example_value: p.example_value, status: p.status, order_index: i,
+      })))
     }
   }, [document.client_id])
 
   const handleSave = useCallback(async (publish?: boolean) => {
     if (!editor) return
     setSaving(true)
-
     const supabase = createClient()
     const rawHtml = editor.getHTML()
     const body = addHeadingIds(rawHtml)
     const shouldPublish = publish !== undefined ? publish : isPublished
-
-    const payload = {
-      title, body, is_published: shouldPublish,
-      section_id: document.section_id, client_id: document.client_id,
-    }
+    const payload = { title, body, is_published: shouldPublish, section_id: document.section_id, client_id: document.client_id }
 
     if (isNew) {
       const { data, error } = await supabase.from('documents').insert(payload).select().single()
       if (!error && data) {
-        await syncStructuredEvents(body, data.id)
+        setDocId(data.id)
+        await saveEventsAndParams(data.id, eventRows, paramRows)
         router.replace(`/admin/clients/${clientId}/${document.section_id}/${data.id}`)
       }
     } else {
       await supabase.from('documents').update(payload).eq('id', document.id!)
-      await syncStructuredEvents(body, document.id!)
+      await saveEventsAndParams(document.id!, eventRows, paramRows)
       if (publish !== undefined) setIsPublished(publish)
     }
 
-    setSaving(false)
-    setSaved(true)
+    setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 2000)
-  }, [editor, title, isPublished, document, clientId, isNew, router, syncStructuredEvents])
+  }, [editor, title, isPublished, document, clientId, isNew, router, eventRows, paramRows, saveEventsAndParams])
 
   if (!editor) return null
 
   return (
     <div className="flex flex-col gap-4">
-      <input
-        type="text" value={title} onChange={(e) => setTitle(e.target.value)}
+      <input type="text" value={title} onChange={(e) => setTitle(e.target.value)}
         placeholder="Document title"
-        className="text-2xl font-semibold text-gray-900 bg-transparent border-0 outline-none placeholder-gray-300 w-full"
-      />
+        className="text-2xl font-semibold text-gray-900 bg-transparent border-0 outline-none placeholder-gray-300 w-full" />
 
+      {/* Toolbar */}
       <div className="flex items-center gap-0.5 p-1.5 bg-white border border-gray-100 rounded-lg flex-wrap">
         <Btn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></svg>
@@ -177,12 +194,8 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
         </Btn>
         <Divider />
-        <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="Heading 2">
-          <span className="text-xs font-bold">H2</span>
-        </Btn>
-        <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} title="Heading 3">
-          <span className="text-xs font-bold">H3</span>
-        </Btn>
+        <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="H2"><span className="text-xs font-bold">H2</span></Btn>
+        <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} title="H3"><span className="text-xs font-bold">H3</span></Btn>
         <Divider />
         <Btn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Bullet list">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>
@@ -194,7 +207,7 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"/></svg>
         </Btn>
         <Divider />
-        <Btn onClick={() => { if (editor.isActive('link')) { editor.chain().focus().unsetLink().run() } else { setLinkUrl(editor.getAttributes('link').href ?? ''); setShowLinkInput((v) => !v) } }} active={editor.isActive('link')} title="Link">
+        <Btn onClick={() => { if (editor.isActive('link')) { editor.chain().focus().unsetLink().run() } else { setLinkUrl(editor.getAttributes('link').href ?? ''); setShowLinkInput(v => !v) } }} active={editor.isActive('link')} title="Link">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
         </Btn>
         <Divider />
@@ -214,15 +227,6 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
             <Btn onClick={() => editor.chain().focus().deleteTable().run()} title="Delete table"><span className="text-xs text-red-500">✕tbl</span></Btn>
           </>
         )}
-        <Divider />
-        {/* Events table */}
-        <Btn onClick={() => setShowEventsModal(true)} title="Insert Events Table" active={false}>
-          <span className="text-xs font-bold" style={{ color: '#FF8282' }}>EV</span>
-        </Btn>
-        {/* Parameters table */}
-        <Btn onClick={() => setShowParamsModal(true)} title="Insert Parameters Table" active={false}>
-          <span className="text-xs font-bold" style={{ color: '#1a1a1a' }}>EP</span>
-        </Btn>
         <Divider />
         <Btn onClick={handleInsertToc} title="Table of contents" active={false}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -247,10 +251,98 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
         </div>
       )}
 
+      {/* Editor */}
       <div className="bg-white border border-gray-100 rounded-xl px-8 py-6">
         <EditorContent editor={editor} />
       </div>
 
+      {/* Events section */}
+      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: '#FFF0F0', color: '#FF8282' }}>EV</span>
+            <p className="text-sm font-medium text-gray-900">Events</p>
+            <span className="text-xs text-gray-400">({eventRows.length})</span>
+          </div>
+          <button onClick={() => setShowEventsModal(true)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-900 transition-colors">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            {eventRows.length === 0 ? 'Add events' : 'Edit events'}
+          </button>
+        </div>
+        {eventRows.length === 0 ? (
+          <div className="px-5 py-4 text-xs text-gray-400">No events defined. Click "Add events" to start.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[500px]">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left text-xs font-medium text-gray-500 px-5 py-2.5">Event</th>
+                  <th className="text-left text-xs font-medium text-gray-500 px-5 py-2.5">Description</th>
+                  <th className="text-left text-xs font-medium text-gray-500 px-5 py-2.5 w-32">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {eventRows.map((e) => (
+                  <tr key={e._key}>
+                    <td className="px-5 py-2.5 font-mono text-sm font-medium" style={{ color: '#FF8282' }}>{e.name}</td>
+                    <td className="px-5 py-2.5 text-gray-600 text-sm">{e.description || '—'}</td>
+                    <td className="px-5 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[e.status]}`}>{e.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Parameters section */}
+      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold px-2 py-0.5 rounded bg-gray-900 text-white">EP</span>
+            <p className="text-sm font-medium text-gray-900">Parameters</p>
+            <span className="text-xs text-gray-400">({paramRows.length})</span>
+          </div>
+          <button onClick={() => setShowParamsModal(true)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-900 transition-colors">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            {paramRows.length === 0 ? 'Add parameters' : 'Edit parameters'}
+          </button>
+        </div>
+        {paramRows.length === 0 ? (
+          <div className="px-5 py-4 text-xs text-gray-400">No parameters defined. Click "Add parameters" to start.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[600px]">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  {['Parameter', 'Description', 'Type', 'Example', 'Status'].map(h => (
+                    <th key={h} className="text-left text-xs font-medium text-gray-500 px-5 py-2.5">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {paramRows.map((p) => (
+                  <tr key={p._key}>
+                    <td className="px-5 py-2.5 font-mono text-sm font-medium text-gray-900">{p.name}</td>
+                    <td className="px-5 py-2.5 text-gray-600 text-sm">{p.description || '—'}</td>
+                    <td className="px-5 py-2.5 font-mono text-xs text-gray-500">{p.type}</td>
+                    <td className="px-5 py-2.5 text-gray-500 text-sm">{p.example_value || '—'}</td>
+                    <td className="px-5 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[p.status]}`}>{p.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
       <div className="flex items-center gap-3">
         <button onClick={() => handleSave()} disabled={saving}
           className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50">
@@ -274,13 +366,15 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
 
       {showEventsModal && (
         <EventsTableModal
-          onInsert={handleInsertEventsTable}
+          initialRows={eventRows}
+          onInsert={(rows) => setEventRows(rows)}
           onClose={() => setShowEventsModal(false)}
         />
       )}
       {showParamsModal && (
         <ParametersTableModal
-          onInsert={handleInsertParamsTable}
+          initialRows={paramRows}
+          onInsert={(rows) => setParamRows(rows)}
           onClose={() => setShowParamsModal(false)}
         />
       )}

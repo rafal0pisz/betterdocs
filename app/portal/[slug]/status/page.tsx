@@ -12,8 +12,8 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  'Planned':     'bg-gray-100 text-gray-500',
-  'Implemented': 'bg-green-50 text-green-600',
+  'Planned':     'bg-amber-100 text-amber-700',
+  'Implemented': 'bg-green-100 text-green-700',
   'To verify':   'bg-amber-50 text-amber-600',
 }
 
