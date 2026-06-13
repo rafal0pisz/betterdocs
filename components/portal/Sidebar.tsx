@@ -88,6 +88,27 @@ export default function PortalSidebar({ client, sections, slug }: Props) {
         })}
       </nav>
 
+
+      {/* Tabela eventów */}
+      <div className="px-2 pb-1" style={{ borderTop: '1px solid #f3f4f6', paddingTop: '8px' }}>
+        <Link
+          href={`/portal/${slug}/parametry`}
+          className="flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm transition-colors"
+          style={pathname === `/portal/${slug}/parametry`
+            ? { backgroundColor: '#FFF0F0', color: ACCENT }
+            : { color: '#6b7280' }
+          }
+        >
+          <span className="shrink-0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="3" y1="9" x2="21" y2="9"/>
+              <line x1="9" y1="3" x2="9" y2="21"/>
+            </svg>
+          </span>
+          <span className="truncate">Tabela eventów</span>
+        </Link>
+      </div>
       {/* Kontakt */}
       <div className="px-2 pb-2 border-t border-gray-100 pt-2">
         <Link

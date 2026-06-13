@@ -63,3 +63,38 @@
   .hljs-function { @apply text-blue-400; }
   .hljs-variable { @apply text-red-400; }
   .hljs-built_in { @apply text-yellow-400; }
+
+  /* Spis treści */
+  .doc-body ul.toc {
+    @apply bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 list-none;
+  }
+  .doc-body ul.toc li {
+    @apply py-0.5;
+  }
+  .doc-body ul.toc li a {
+    @apply text-sm text-gray-700 hover:text-blue-600 no-underline transition-colors;
+  }
+
+  /* Linki w treści */
+  .doc-body a, .editor-link {
+    @apply text-blue-600 underline underline-offset-2 hover:text-blue-800 cursor-pointer;
+  }
+
+  /* Tabela Eventów */
+  .doc-body table.event-table {
+    @apply w-full text-sm mb-4 border-collapse;
+    border: 2px solid #FF8282;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .doc-body table.event-table tr:first-child td {
+    @apply font-semibold text-white text-xs uppercase tracking-wider;
+    background: #FF8282;
+    padding: 8px 12px;
+  }
+  .doc-body table.event-table td {
+    @apply border border-gray-200 px-3 py-2 text-gray-700 align-top;
+  }
+  .doc-body table.event-table tr:first-child td:first-child {
+    width: 160px;
+  }

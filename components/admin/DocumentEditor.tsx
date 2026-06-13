@@ -14,6 +14,7 @@ import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Document } from '@/types'
+import { EventTable, EventTableRow, EventTableCell, insertEventTable, parseEventsFromHtml } from '@/lib/tiptap/EventTableExtension'
 
 const lowlight = createLowlight(common)
 
@@ -36,13 +37,19 @@ function Btn({ onClick, active, title, children }: {
 
 function Divider() { return <div className="w-px h-4 bg-gray-200 mx-1" /> }
 
-// Generuje spis treści z HTML edytora
+function addHeadingIds(html: string): string {
+  return html.replace(/<(h[23])[^>]*>(.*?)<\/h[23]>/gi, (_, tag, content) => {
+    const text = content.replace(/<[^>]+>/g, '')
+    const id = text.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    return `<${tag} id="${id}">${content}</${tag}>`
+  })
+}
+
 function generateToc(html: string): string {
   const parser = new DOMParser()
   const doc = parser.parseFromString(html, 'text/html')
   const headings = doc.querySelectorAll('h2, h3')
   if (headings.length === 0) return ''
-
   const items = Array.from(headings).map((h) => {
     const level = h.tagName.toLowerCase()
     const text = h.textContent ?? ''
@@ -50,17 +57,7 @@ function generateToc(html: string): string {
     const indent = level === 'h3' ? 'style="padding-left:1.25rem"' : ''
     return `<li ${indent}><a href="#${id}">${text}</a></li>`
   }).join('\n')
-
   return `<ul class="toc">\n${items}\n</ul>`
-}
-
-// Dodaje id do nagłówków w HTML (potrzebne do kotwic TOC)
-function addHeadingIds(html: string): string {
-  return html.replace(/<(h[23])[^>]*>(.*?)<\/h[23]>/gi, (_, tag, content) => {
-    const text = content.replace(/<[^>]+>/g, '')
-    const id = text.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    return `<${tag} id="${id}">${content}</${tag}>`
-  })
 }
 
 export default function DocumentEditor({ document, clientId, isNew = false }: Props) {
@@ -75,11 +72,12 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ codeBlock: false }),
-      LinkExtension.configure({ openOnClick: false, HTMLAttributes: { class: 'editor-link' } }),
+      LinkExtension.configure({ openOnClick: false }),
       Placeholder.configure({ placeholder: 'Zacznij pisać treść dokumentu...' }),
       Table.configure({ resizable: true }),
       TableRow, TableHeader, TableCell,
       CodeBlockLowlight.configure({ lowlight, defaultLanguage: 'javascript' }),
+      EventTable, EventTableRow, EventTableCell,
     ],
     content: document.body ?? '',
     editorProps: { attributes: { class: 'doc-body outline-none min-h-[400px]' } },
@@ -95,16 +93,42 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
 
   const handleSetLink = useCallback(() => {
     if (!editor) return
-    if (!linkUrl) {
-      editor.chain().focus().unsetLink().run()
-      setShowLinkInput(false)
-      return
-    }
+    if (!linkUrl) { editor.chain().focus().unsetLink().run(); setShowLinkInput(false); return }
     const url = linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`
     editor.chain().focus().setLink({ href: url }).run()
     setLinkUrl('')
     setShowLinkInput(false)
   }, [editor, linkUrl])
+
+  // Zapisuje eventy z tabel eventowych do Supabase
+  const syncEvents = useCallback(async (html: string, docId: string) => {
+    const events = parseEventsFromHtml(html)
+    if (events.length === 0) return
+
+    const supabase = createClient()
+    // Usuń stare eventy powiązane z tym dokumentem przez description zawierające doc_id
+    // Używamy custom field w opisie aby powiązać event z dokumentem
+    await supabase
+      .from('events')
+      .delete()
+      .eq('client_id', document.client_id)
+      .eq('section_id', document.section_id)
+      .like('description', `[doc:${docId}]%`)
+
+    if (events.length > 0) {
+      await supabase.from('events').insert(
+        events.map((e, i) => ({
+          client_id: document.client_id,
+          section_id: document.section_id,
+          name: e.name,
+          description: `[doc:${docId}] ${e.description}`,
+          status: 'Planned' as const,
+          is_published: true,
+          order_index: i,
+        }))
+      )
+    }
+  }, [document])
 
   const handleSave = useCallback(async (publish?: boolean) => {
     if (!editor) return
@@ -116,28 +140,37 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
     const shouldPublish = publish !== undefined ? publish : isPublished
 
     const payload = {
-      title, body, is_published: shouldPublish,
-      section_id: document.section_id, client_id: document.client_id,
+      title,
+      body,
+      is_published: shouldPublish,
+      section_id: document.section_id,
+      client_id: document.client_id,
     }
+
+    let docId = document.id
 
     if (isNew) {
       const { data, error } = await supabase.from('documents').insert(payload).select().single()
-      if (!error && data) router.replace(`/admin/clients/${clientId}/${document.section_id}/${data.id}`)
+      if (!error && data) {
+        docId = data.id
+        await syncEvents(body, data.id)
+        router.replace(`/admin/clients/${clientId}/${document.section_id}/${data.id}`)
+      }
     } else {
       await supabase.from('documents').update(payload).eq('id', document.id!)
+      await syncEvents(body, document.id!)
       if (publish !== undefined) setIsPublished(publish)
     }
 
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
-  }, [editor, title, isPublished, document, clientId, isNew, router])
+  }, [editor, title, isPublished, document, clientId, isNew, router, syncEvents])
 
   if (!editor) return null
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Tytuł */}
       <input
         type="text" value={title} onChange={(e) => setTitle(e.target.value)}
         placeholder="Tytuł dokumentu"
@@ -155,18 +188,14 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
         <Btn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title="Kod inline">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
         </Btn>
-
         <Divider />
-
-        <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="Nagłówek H2">
+        <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="H2">
           <span className="text-xs font-bold">H2</span>
         </Btn>
-        <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} title="Nagłówek H3">
+        <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} title="H3">
           <span className="text-xs font-bold">H3</span>
         </Btn>
-
         <Divider />
-
         <Btn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Lista punktowana">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>
         </Btn>
@@ -176,36 +205,16 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
         <Btn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title="Cytat">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"/></svg>
         </Btn>
-
         <Divider />
-
-        {/* Link */}
-        <Btn
-          onClick={() => {
-            if (editor.isActive('link')) {
-              editor.chain().focus().unsetLink().run()
-            } else {
-              setLinkUrl(editor.getAttributes('link').href ?? '')
-              setShowLinkInput((v) => !v)
-            }
-          }}
-          active={editor.isActive('link')}
-          title="Link"
-        >
+        <Btn onClick={() => { if (editor.isActive('link')) { editor.chain().focus().unsetLink().run() } else { setLinkUrl(editor.getAttributes('link').href ?? ''); setShowLinkInput((v) => !v) } }} active={editor.isActive('link')} title="Link">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
         </Btn>
-
         <Divider />
-
-        {/* Blok kodu JS */}
-        <Btn onClick={() => editor.chain().focus().toggleCodeBlock({ language: 'javascript' }).run()} active={editor.isActive('codeBlock')} title="Blok kodu JavaScript">
+        <Btn onClick={() => editor.chain().focus().toggleCodeBlock({ language: 'javascript' }).run()} active={editor.isActive('codeBlock')} title="Blok JS">
           <span className="text-xs font-mono font-bold">JS</span>
         </Btn>
-
         <Divider />
-
-        {/* Tabela */}
-        <Btn onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="Wstaw tabelę" active={false}>
+        <Btn onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="Tabela" active={false}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
         </Btn>
         {editor.isActive('table') && (
@@ -217,16 +226,16 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
             <Btn onClick={() => editor.chain().focus().deleteTable().run()} title="Usuń tabelę"><span className="text-xs text-red-500">✕tab</span></Btn>
           </>
         )}
-
         <Divider />
-
-        {/* Spis treści */}
-        <Btn onClick={handleInsertToc} title="Wstaw spis treści (H2/H3)" active={false}>
+        {/* Tabela Eventów */}
+        <Btn onClick={() => insertEventTable(editor)} active={editor.isActive('eventTable')} title="Wstaw Tabelę Eventów">
+          <span className="text-xs font-bold" style={{ color: editor.isActive('eventTable') ? undefined : '#FF8282' }}>ET</span>
+        </Btn>
+        <Divider />
+        <Btn onClick={handleInsertToc} title="Spis treści" active={false}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
         </Btn>
-
         <Divider />
-
         <Btn onClick={() => editor.chain().focus().undo().run()} title="Cofnij">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7v6h6"/><path d="M3 13A9 9 0 1 0 5.1 5.1L3 7"/></svg>
         </Btn>
@@ -235,19 +244,13 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
         </Btn>
       </div>
 
-      {/* Input dla linka */}
+      {/* Link input */}
       {showLinkInput && (
         <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400 shrink-0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-          <input
-            type="url"
-            value={linkUrl}
-            onChange={(e) => setLinkUrl(e.target.value)}
+          <input type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleSetLink(); if (e.key === 'Escape') setShowLinkInput(false) }}
-            placeholder="https://..."
-            autoFocus
-            className="flex-1 text-sm outline-none bg-transparent"
-          />
+            placeholder="https://..." autoFocus className="flex-1 text-sm outline-none bg-transparent" />
           <button onClick={handleSetLink} className="text-xs bg-gray-900 text-white px-2.5 py-1 rounded-md">Dodaj</button>
           <button onClick={() => setShowLinkInput(false)} className="text-xs text-gray-400 hover:text-gray-600">Anuluj</button>
         </div>
