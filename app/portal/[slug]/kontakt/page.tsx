@@ -12,13 +12,13 @@ export default async function ContactPage({ params }: Props) {
   return (
     <div className="max-w-2xl mx-auto px-8 py-10">
       <div className="flex items-center gap-2 text-xs text-gray-400 mb-6">
-        <Link href={`/portal/${slug}`} className="hover:text-gray-600 transition-colors">Przegląd</Link>
+        <Link href={`/portal/${slug}`} className="hover:text-gray-600 transition-colors">Overview</Link>
         <span>/</span>
-        <span className="text-gray-600">Kontakt</span>
+        <span className="text-gray-600">Contact</span>
       </div>
 
-      <h1 className="text-2xl font-semibold text-gray-900 mb-2">Kontakt</h1>
-      <p className="text-sm text-gray-500 mb-8">Masz pytania dotyczące dokumentacji lub wdrożenia? Napisz do nas.</p>
+      <h1 className="text-2xl font-semibold text-gray-900 mb-2">Contact</h1>
+      <p className="text-sm text-gray-500 mb-8">Masz pytania dotyczące documentacji lub wdrożenia? Napisz do nas.</p>
 
       <div className="bg-white border border-gray-100 rounded-xl p-6">
         <div className="flex items-start gap-4">
@@ -36,7 +36,7 @@ export default async function ContactPage({ params }: Props) {
             >
               kontakt@bettersteps.pl
             </a>
-            <p className="text-xs text-gray-400 mt-1">Odpowiadamy w ciągu 1 dnia roboczego.</p>
+            <p className="text-xs text-gray-400 mt-1">We respond within 1 business day.</p>
           </div>
         </div>
 
@@ -57,7 +57,7 @@ export default async function ContactPage({ params }: Props) {
             >
               bettersteps.pl
             </a>
-            <p className="text-xs text-gray-400 mt-1">Agencja analityki internetowej.</p>
+            <p className="text-xs text-gray-400 mt-1">Web analytics agency.</p>
           </div>
         </div>
       </div>

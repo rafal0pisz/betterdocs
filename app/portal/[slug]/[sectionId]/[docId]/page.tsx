@@ -34,7 +34,7 @@ export default async function DocumentPage({ params }: Props) {
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-gray-400 mb-6">
         <Link href={`/portal/${slug}`} className="hover:text-gray-600 transition-colors">
-          Przegląd
+          Overview
         </Link>
         <span>/</span>
         <Link href={`/portal/${slug}/${sectionId}`} className="hover:text-gray-600 transition-colors">
@@ -48,7 +48,7 @@ export default async function DocumentPage({ params }: Props) {
       <div className="mb-8 pb-6 border-b border-gray-100">
         <h1 className="text-2xl font-semibold text-gray-900 mb-2">{document.title}</h1>
         <p className="text-xs text-gray-400">
-          Ostatnia aktualizacja: {formatDate(document.updated_at)}
+          Last updated: {formatDate(document.updated_at)}
         </p>
       </div>
 
@@ -59,7 +59,7 @@ export default async function DocumentPage({ params }: Props) {
           dangerouslySetInnerHTML={{ __html: document.body }}
         />
       ) : (
-        <p className="text-sm text-gray-400">Dokument jest pusty.</p>
+        <p className="text-sm text-gray-400">This document is empty.</p>
       )}
     </div>
   )

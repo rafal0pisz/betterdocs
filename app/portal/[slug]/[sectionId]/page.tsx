@@ -44,7 +44,7 @@ export default async function SectionPage({ params }: Props) {
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="flex items-center gap-2 text-xs text-gray-400 mb-6">
-        <Link href={`/portal/${slug}`} className="hover:text-gray-600 transition-colors">Przegląd</Link>
+        <Link href={`/portal/${slug}`} className="hover:text-gray-600 transition-colors">Overview</Link>
         <span>/</span>
         <span className="text-gray-600">{section.title}</span>
       </div>
@@ -53,7 +53,7 @@ export default async function SectionPage({ params }: Props) {
 
       {events.length === 0 && documents.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          <p className="text-sm">Brak opublikowanych treści w tej sekcji.</p>
+          <p className="text-sm">No published content in this section.</p>
         </div>
       ) : (
         <div className="bg-white border border-gray-100 rounded-xl divide-y divide-gray-50">
@@ -95,7 +95,7 @@ export default async function SectionPage({ params }: Props) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors truncate">{doc.title}</p>
-                <p className="text-xs text-gray-400 mt-0.5">Zaktualizowano {formatDate(doc.updated_at)}</p>
+                <p className="text-xs text-gray-400 mt-0.5">Updated {formatDate(doc.updated_at)}</p>
               </div>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="text-gray-300 shrink-0 group-hover:text-gray-400 transition-colors">
                 <path d="m9 18 6-6-6-6"/>

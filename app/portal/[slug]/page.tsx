@@ -27,8 +27,8 @@ function SectionCard({ section, slug, docs }: { section: Section; slug: string; 
       </p>
       <p className="text-xs text-gray-400">
         {sectionDocs.length === 0
-          ? 'Brak dokumentów'
-          : `${sectionDocs.length} ${sectionDocs.length === 1 ? 'dokument' : 'dokumenty'}`}
+          ? 'No documents'
+          : `${sectionDocs.length} ${sectionDocs.length === 1 ? 'document' : 'documenty'}`}
       </p>
     </Link>
   )
@@ -52,10 +52,10 @@ export default async function PortalOverviewPage({ params }: Props) {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-gray-900 mb-1">
-          Dokumentacja analityczna
+          Documentation analityczna
         </h1>
         <p className="text-sm text-gray-500">
-          Wszystkie materiały wdrożeniowe i plany pomiarowe dla {client.name}.
+          All implementation materials and measurement plans for {client.name}.
         </p>
       </div>
 
@@ -63,7 +63,7 @@ export default async function PortalOverviewPage({ params }: Props) {
       {visibleSections.length > 0 && (
         <div className="mb-10">
           <h2 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">
-            Sekcje
+            Sections
           </h2>
           <div className="grid grid-cols-2 gap-3">
             {visibleSections.map((section) => (
@@ -82,7 +82,7 @@ export default async function PortalOverviewPage({ params }: Props) {
       {latestDocs.length > 0 && (
         <div>
           <h2 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">
-            Ostatnio zaktualizowane
+            Recently updated
           </h2>
           <div className="bg-white border border-gray-100 rounded-xl divide-y divide-gray-50">
             {latestDocs.map((doc) => (
@@ -109,7 +109,7 @@ export default async function PortalOverviewPage({ params }: Props) {
       {/* Empty state */}
       {visibleSections.length === 0 && latestDocs.length === 0 && (
         <div className="text-center py-16 text-gray-400">
-          <p className="text-sm">Brak opublikowanych dokumentów.</p>
+          <p className="text-sm">Brak opublikowanych documentów.</p>
         </div>
       )}
     </div>

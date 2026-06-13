@@ -45,7 +45,7 @@ export default function PortalSidebar({ client, sections, slug }: Props) {
           </div>
           <div className="min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">{client.name}</p>
-            <p className="text-xs text-gray-400">Portal analityczny</p>
+            <p className="text-xs text-gray-400">Analytics portal</p>
           </div>
         </div>
         {/* Przycisk zamknięcia na mobile */}
@@ -62,7 +62,7 @@ export default function PortalSidebar({ client, sections, slug }: Props) {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3">
         <p className="px-2 mb-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
-          Dokumentacja
+          Documentation
         </p>
         {sections.map((section) => {
           const href = `/portal/${slug}/${section.id}`
@@ -90,7 +90,7 @@ export default function PortalSidebar({ client, sections, slug }: Props) {
 
 
 
-      {/* Status zdarzeń */}
+      {/* Event Status */}
       <div className="px-2 pb-1" style={{ borderTop: '1px solid #f3f4f6', paddingTop: '8px' }}>
         <Link
           href={`/portal/${slug}/status`}
@@ -105,10 +105,10 @@ export default function PortalSidebar({ client, sections, slug }: Props) {
               <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
             </svg>
           </span>
-          <span className="truncate">Status zdarzeń</span>
+          <span className="truncate">Event Status</span>
         </Link>
       </div>
-      {/* Tabela eventów */}
+      {/* Events Table */}
       <div className="px-2 pb-1" style={{ borderTop: '1px solid #f3f4f6', paddingTop: '8px' }}>
         <Link
           href={`/portal/${slug}/parametry`}
@@ -125,10 +125,10 @@ export default function PortalSidebar({ client, sections, slug }: Props) {
               <line x1="9" y1="3" x2="9" y2="21"/>
             </svg>
           </span>
-          <span className="truncate">Tabela eventów</span>
+          <span className="truncate">Events Table</span>
         </Link>
       </div>
-      {/* Kontakt */}
+      {/* Contact */}
       <div className="px-2 pb-2 border-t border-gray-100 pt-2">
         <Link
           href={`/portal/${slug}/kontakt`}
@@ -139,7 +139,7 @@ export default function PortalSidebar({ client, sections, slug }: Props) {
           }
         >
           <span className="shrink-0"><Icon name="ti-mail" /></span>
-          <span className="truncate">Kontakt</span>
+          <span className="truncate">Contact</span>
         </Link>
       </div>
 
