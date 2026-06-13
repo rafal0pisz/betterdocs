@@ -8,6 +8,8 @@ export type EventRow = {
   name: string
   is_custom: boolean
   description: string
+  parameters: string
+  data_layer: string
   status: 'Planned' | 'Implemented' | 'To verify'
 }
 
@@ -20,13 +22,14 @@ type Props = {
 const STATUS_OPTIONS = ['Planned', 'Implemented', 'To verify']
 
 function newRow(): EventRow {
-  return { _key: Math.random().toString(36).slice(2), name: '', is_custom: false, description: '', status: 'Planned' }
+  return { _key: Math.random().toString(36).slice(2), name: '', is_custom: false, description: '', parameters: '', data_layer: '', status: 'Planned' }
 }
 
 export default function EventsTableModal({ initialRows, onInsert, onClose }: Props) {
   const [rows, setRows] = useState<EventRow[]>(initialRows && initialRows.length > 0 ? initialRows : [newRow()])
   const [showDropdown, setShowDropdown] = useState<string | null>(null)
   const [search, setSearch] = useState<Record<string, string>>({})
+  const [expandedDL, setExpandedDL] = useState<string | null>(null)
 
   function addRow() { setRows(p => [...p, newRow()]) }
   function removeRow(key: string) { setRows(p => p.filter(r => r._key !== key)) }
@@ -57,7 +60,7 @@ export default function EventsTableModal({ initialRows, onInsert, onClose }: Pro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-xl">
+      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Events</h2>
@@ -68,23 +71,26 @@ export default function EventsTableModal({ initialRows, onInsert, onClose }: Pro
           </button>
         </div>
 
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <div className="grid grid-cols-[2fr_2fr_1fr_28px] gap-2 mb-2">
-            {['Event', 'Description', 'Status', ''].map(h => (
-              <span key={h} className="text-[10px] font-medium uppercase tracking-wider text-gray-400 px-1">{h}</span>
-            ))}
-          </div>
-          <div className="space-y-2">
-            {rows.map(row => (
-              <div key={row._key} className="grid grid-cols-[2fr_2fr_1fr_28px] gap-2 items-start">
+        <div className="flex-1 overflow-auto px-6 py-4 space-y-4">
+          {rows.map((row, idx) => (
+            <div key={row._key} className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-400">Event #{idx + 1}</span>
+                <button onClick={() => removeRow(row._key)} disabled={rows.length === 1}
+                  className="text-xs text-gray-300 hover:text-red-400 transition-colors disabled:opacity-30">Remove</button>
+              </div>
+
+              {/* Row 1: name + description + status */}
+              <div className="grid grid-cols-[2fr_2fr_1fr] gap-2">
                 <div className="relative">
+                  <label className="block text-[10px] font-medium text-gray-400 mb-1">Event name</label>
                   <input
                     value={search[row._key] !== undefined ? search[row._key] : row.name}
                     onChange={e => handleSearch(row._key, e.target.value)}
                     onFocus={() => { setSearch(p => ({ ...p, [row._key]: row.name })); setShowDropdown(row._key) }}
                     onBlur={() => setTimeout(() => setShowDropdown(null), 150)}
                     placeholder="Search or type custom..."
-                    className="w-full px-2.5 py-2 text-xs font-mono border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400"
+                    className="w-full px-2.5 py-2 text-xs font-mono border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-gray-400"
                   />
                   {showDropdown === row._key && (
                     <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-auto">
@@ -111,20 +117,51 @@ export default function EventsTableModal({ initialRows, onInsert, onClose }: Pro
                     </div>
                   )}
                 </div>
-                <input value={row.description} onChange={e => updateRow(row._key, 'description', e.target.value)}
-                  placeholder="When does this fire..." className="px-2.5 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400" />
-                <select value={row.status} onChange={e => updateRow(row._key, 'status', e.target.value)}
-                  className="px-2 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 bg-white">
-                  {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <button onClick={() => removeRow(row._key)} disabled={rows.length === 1}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 disabled:opacity-30">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
-                </button>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-400 mb-1">Description</label>
+                  <input value={row.description} onChange={e => updateRow(row._key, 'description', e.target.value)}
+                    placeholder="When does this fire..."
+                    className="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-gray-400" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-400 mb-1">Status</label>
+                  <select value={row.status} onChange={e => updateRow(row._key, 'status', e.target.value)}
+                    className="w-full px-2 py-2 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-gray-400">
+                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
               </div>
-            ))}
-          </div>
-          <button onClick={addRow} className="mt-3 flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-900">
+
+              {/* Row 2: parameters */}
+              <div>
+                <label className="block text-[10px] font-medium text-gray-400 mb-1">Parameters (comma separated)</label>
+                <input value={row.parameters} onChange={e => updateRow(row._key, 'parameters', e.target.value)}
+                  placeholder="e.g. item_id, item_name, price, currency"
+                  className="w-full px-2.5 py-2 text-xs font-mono border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-gray-400" />
+              </div>
+
+              {/* Row 3: dataLayer */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-medium text-gray-400">dataLayer.push() — optional</label>
+                  <button onClick={() => setExpandedDL(expandedDL === row._key ? null : row._key)}
+                    className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors">
+                    {expandedDL === row._key ? 'Collapse' : 'Expand'}
+                  </button>
+                </div>
+                <textarea
+                  value={row.data_layer}
+                  onChange={e => updateRow(row._key, 'data_layer', e.target.value)}
+                  placeholder={'dataLayer.push({\n  event: \'' + (row.name || 'event_name') + '\',\n  // parameters here\n});'}
+                  rows={expandedDL === row._key ? 10 : 3}
+                  className="w-full px-2.5 py-2 text-xs font-mono border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-gray-400 resize-none transition-all"
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </div>
+            </div>
+          ))}
+
+          <button onClick={addRow} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-900 transition-colors">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
             Add event
           </button>

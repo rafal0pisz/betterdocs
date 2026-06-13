@@ -90,7 +90,7 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
     const supabase = createClient()
     supabase.from('structured_events').select('*').eq('document_id', document.id).order('order_index').then(({ data }) => {
       if (data) setEventRows(data.map((e: any) => ({
-        _key: e.id, name: e.name, is_custom: e.is_custom, description: e.description ?? '', status: e.status,
+        _key: e.id, name: e.name, is_custom: e.is_custom, description: e.description ?? '', parameters: e.parameters ?? '', data_layer: e.data_layer ?? '', status: e.status,
       })))
     })
     supabase.from('structured_parameters').select('*').eq('document_id', document.id).order('order_index').then(({ data }) => {
@@ -137,7 +137,7 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
     if (events.length > 0) {
       await supabase.from('structured_events').insert(events.map((e, i) => ({
         client_id: document.client_id, document_id: currentDocId,
-        name: e.name, is_custom: e.is_custom, description: e.description, status: e.status, order_index: i,
+        name: e.name, is_custom: e.is_custom, description: e.description, parameters: e.parameters, data_layer: e.data_layer, status: e.status, order_index: i,
       })))
     }
     if (params.length > 0) {
@@ -287,6 +287,7 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
                   <tr key={e._key}>
                     <td className="px-5 py-2.5 font-mono text-sm font-medium" style={{ color: '#FF8282' }}>{e.name}</td>
                     <td className="px-5 py-2.5 text-gray-600 text-sm">{e.description || '—'}</td>
+                    <td className="px-5 py-2.5 text-gray-500 text-xs font-mono">{e.parameters || '—'}</td>
                     <td className="px-5 py-2.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[e.status]}`}>{e.status}</span>
                     </td>

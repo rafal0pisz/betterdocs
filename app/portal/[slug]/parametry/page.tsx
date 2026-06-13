@@ -2,30 +2,13 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getClientBySlug } from '@/lib/queries'
 import { createClient } from '@/lib/supabase/server'
-import { JSDOM } from 'jsdom'
 
 type Props = { params: Promise<{ slug: string }> }
 
-type EventRow = {
-  name: string
-  docTitle: string
-  docId: string
-  sectionId: string
-}
-
-function parseEventsFromHtml(html: string): string[] {
-  const dom = new JSDOM(html)
-  const labels = dom.window.document.querySelectorAll('p[data-event-label]')
-  const events: string[] = []
-  const seen = new Set<string>()
-  labels.forEach((el) => {
-    const name = el.textContent?.trim() ?? ''
-    if (name && !seen.has(name)) {
-      seen.add(name)
-      events.push(name)
-    }
-  })
-  return events
+const STATUS_COLORS: Record<string, string> = {
+  'Planned':     'bg-amber-100 text-amber-700',
+  'Implemented': 'bg-green-100 text-green-700',
+  'To verify':   'bg-blue-50 text-blue-600',
 }
 
 export default async function ParametryPage({ params }: Props) {
@@ -34,88 +17,75 @@ export default async function ParametryPage({ params }: Props) {
   if (!client) notFound()
 
   const supabase = await createClient()
-  const { data: documents } = await supabase
-    .from('documents')
-    .select('id, title, body, section_id, sections(title)')
+  const { data: events } = await supabase
+    .from('structured_events')
+    .select('*, documents(title, section_id, sections(title))')
     .eq('client_id', client.id)
-    .eq('is_published', true)
+    .order('name')
 
-  // Zbierz wszystkie eventy ze wszystkich dokumentów
-  const allEvents: EventRow[] = []
-  const seenGlobal = new Set<string>()
-
-  ;(documents ?? []).forEach((doc) => {
-    if (!doc.body) return
-    const events = parseEventsFromHtml(doc.body)
-    events.forEach((name) => {
-      if (!seenGlobal.has(name)) {
-        seenGlobal.add(name)
-        allEvents.push({
-          name,
-          docTitle: doc.title,
-          docId: doc.id,
-          sectionId: doc.section_id,
-        })
-      }
-    })
-  })
-
-  allEvents.sort((a, b) => a.name.localeCompare(b.name))
+  const grouped = (events ?? []).reduce((acc: Record<string, typeof events>, event) => {
+    const key = (event.documents as any)?.sections?.title ?? 'Other'
+    if (!acc[key]) acc[key] = []
+    acc[key]!.push(event)
+    return acc
+  }, {})
 
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
       <div className="flex items-center gap-2 text-xs text-gray-400 mb-6">
-        <Link href={`/portal/${slug}`} className="hover:text-gray-600 transition-colors">Przegląd</Link>
+        <Link href={`/portal/${slug}`} className="hover:text-gray-600 transition-colors">Overview</Link>
         <span>/</span>
-        <span className="text-gray-600">Tabela eventów</span>
+        <span className="text-gray-600">Events Table</span>
       </div>
 
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 mb-1">Tabela eventów</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">Events Table</h1>
           <p className="text-sm text-gray-500">
-            {allEvents.length === 0
-              ? 'Brak eventów w dokumentacji.'
-              : `${allEvents.length} unikalnych zdarzeń analitycznych`}
+            {(events?.length ?? 0) === 0
+              ? 'No events defined.'
+              : `${events?.length} unique events`}
           </p>
         </div>
       </div>
 
-      {allEvents.length === 0 ? (
+      {(events?.length ?? 0) === 0 ? (
         <div className="text-center py-16 bg-white border border-gray-100 rounded-xl text-gray-400">
-          <p className="text-sm">Brak eventów. Oznacz zdarzenia w dokumentach przyciskiem EV.</p>
+          <p className="text-sm">No events yet. Add events using the EV button in the editor.</p>
         </div>
       ) : (
-        <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Event</th>
-                  <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Dokument</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {allEvents.map((event, i) => (
-                  <tr key={i} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3">
-                      <span className="font-mono text-sm font-medium" style={{ color: '#FF8282' }}>
-                        {event.name}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <Link
-                        href={`/portal/${slug}/${event.sectionId}/${event.docId}`}
-                        className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-                      >
-                        {event.docTitle}
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="space-y-8">
+          {Object.entries(grouped).map(([sectionTitle, sectionEvents]) => (
+            <div key={sectionTitle}>
+              <h2 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">{sectionTitle}</h2>
+              <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[500px]">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50">
+                        <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Event</th>
+                        <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Description</th>
+                        <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Parameters</th>
+                        <th className="text-left text-xs font-medium text-gray-500 px-5 py-3 w-28">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {(sectionEvents ?? []).map((event: any) => (
+                        <tr key={event.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-5 py-3 font-mono text-sm font-medium" style={{ color: '#FF8282' }}>{event.name}</td>
+                          <td className="px-5 py-3 text-sm text-gray-600">{event.description || '—'}</td>
+                          <td className="px-5 py-3 text-xs font-mono text-gray-500">{event.parameters || '—'}</td>
+                          <td className="px-5 py-3">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[event.status] ?? ''}`}>{event.status}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
