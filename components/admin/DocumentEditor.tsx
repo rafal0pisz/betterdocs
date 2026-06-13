@@ -68,6 +68,17 @@ const STATUS_COLORS: Record<string, string> = {
   'To verify':   'bg-blue-50 text-blue-600',
 }
 
+
+function slugify(str: string) {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 80)
+}
+
 export default function DocumentEditor({ document, clientId, isNew = false }: Props) {
   const router = useRouter()
   const [title, setTitle] = useState(document.title ?? '')
@@ -155,7 +166,7 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
     const rawHtml = editor.getHTML()
     const body = addHeadingIds(rawHtml)
     const shouldPublish = publish !== undefined ? publish : isPublished
-    const payload = { title, body, is_published: shouldPublish, section_id: document.section_id, client_id: document.client_id }
+    const payload = { title, body, slug: slugify(title) || 'document', is_published: shouldPublish, section_id: document.section_id, client_id: document.client_id }
 
     if (isNew) {
       const { data, error } = await supabase.from('documents').insert(payload).select().single()

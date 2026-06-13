@@ -65,7 +65,7 @@ export default function PortalSidebar({ client, sections, slug }: Props) {
           Sections
         </p>
         {sections.map((section) => {
-          const href = `/portal/${slug}/${section.id}`
+          const href = `/portal/${slug}/${section.slug}`
           const overviewHref = `/portal/${slug}`
           const isOverview = section.order_index === 0
           const targetHref = isOverview ? overviewHref : href

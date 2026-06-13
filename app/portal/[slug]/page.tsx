@@ -19,7 +19,7 @@ function SectionCard({ section, slug, docs }: { section: Section; slug: string; 
   const sectionDocs = docs.filter((d) => d.section_id === section.id)
   return (
     <Link
-      href={`/portal/${slug}/${section.id}`}
+      href={`/portal/${slug}/${section.slug}`}
       className="block bg-white border border-gray-100 rounded-xl p-5 hover:border-gray-300 hover:shadow-sm transition-all group"
     >
       <p className="text-sm font-medium text-gray-900 mb-1 group-hover:text-blue-600 transition-colors">
@@ -88,7 +88,7 @@ export default async function PortalOverviewPage({ params }: Props) {
             {latestDocs.map((doc) => (
               <Link
                 key={doc.id}
-                href={`/portal/${slug}/${doc.section_id}/${doc.id}`}
+                href={`/portal/${slug}/${doc.section_slug ?? doc.section_id}/${doc.slug}`}
                 className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="text-gray-300 shrink-0">
