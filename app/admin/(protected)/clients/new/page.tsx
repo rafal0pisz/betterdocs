@@ -6,13 +6,13 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 const DEFAULT_SECTIONS = [
-  { title: 'Przegląd',        icon: 'ti-layout-grid',    order_index: 0 },
-  { title: 'Plan pomiarowy',  icon: 'ti-tags',           order_index: 1 },
-  { title: 'GA4 / GTM',       icon: 'ti-brand-google',   order_index: 2 },
-  { title: 'Consent Mode',    icon: 'ti-shield-check',   order_index: 3 },
-  { title: 'Dashboardy LS',   icon: 'ti-chart-bar',      order_index: 4 },
-  { title: 'Audyty',          icon: 'ti-file-analytics', order_index: 5 },
-  { title: 'Linki i dostępy', icon: 'ti-link',           order_index: 6 },
+  { title: 'Overview',          icon: 'ti-layout-grid',    order_index: 0 },
+  { title: 'Plan pomiarowy',    icon: 'ti-tags',           order_index: 1 },
+  { title: 'GA4 / GTM',         icon: 'ti-brand-google',   order_index: 2 },
+  { title: 'Consent Mode',      icon: 'ti-shield-check',   order_index: 3 },
+  { title: 'Dashboards',        icon: 'ti-chart-bar',      order_index: 4 },
+  { title: 'Audit',             icon: 'ti-file-analytics', order_index: 5 },
+  { title: 'Links and access',  icon: 'ti-link',           order_index: 6 },
 ]
 
 function slugify(str: string) {
@@ -44,7 +44,6 @@ export default function NewClientPage() {
 
     const supabase = createClient()
 
-    // Utwórz klienta
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .insert({ name, slug, accent_color: accentColor })
@@ -57,10 +56,19 @@ export default function NewClientPage() {
       return
     }
 
-    // Utwórz domyślne sekcje
-    await supabase.from('sections').insert(
-      DEFAULT_SECTIONS.map((s) => ({ ...s, client_id: client.id }))
+    const { error: sectionsError } = await supabase.from('sections').insert(
+      DEFAULT_SECTIONS.map((s) => ({
+        ...s,
+        client_id: client.id,
+        slug: slugify(s.title),
+      }))
     )
+
+    if (sectionsError) {
+      setError('Klient utworzony, ale sekcje nie zostały dodane: ' + sectionsError.message)
+      setLoading(false)
+      return
+    }
 
     router.push(`/admin/clients/${client.id}`)
   }
