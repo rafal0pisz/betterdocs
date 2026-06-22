@@ -5,10 +5,10 @@ export type Client = {
   logo_url: string | null
   accent_color: string
   is_active: boolean
+  portal_password: string | null
   created_at: string
   updated_at: string
 }
-
 export type Section = {
   id: string
   client_id: string
@@ -20,7 +20,6 @@ export type Section = {
   created_at: string
   updated_at: string
 }
-
 export type Document = {
   id: string
   section_id: string
@@ -33,20 +32,15 @@ export type Document = {
   created_at: string
   updated_at: string
 }
-
 export type SectionWithDocuments = Section & {
   documents: Document[]
 }
-
 export type ClientWithSections = Client & {
   sections: SectionWithDocuments[]
 }
-
 export type EventStatus = 'Planned' | 'Implemented' | 'To verify'
-
 export type ParamScope = 'event' | 'user' | 'item'
 export type ParamType = 'string' | 'number' | 'boolean'
-
 export type GAEvent = {
   id: string
   client_id: string
@@ -59,7 +53,6 @@ export type GAEvent = {
   created_at: string
   updated_at: string
 }
-
 export type EventParameter = {
   id: string
   event_id: string
@@ -72,7 +65,6 @@ export type EventParameter = {
   order_index: number
   created_at: string
 }
-
 export type GAEventWithParameters = GAEvent & {
   event_parameters: EventParameter[]
 }

@@ -1,3 +1,4 @@
+import ClientPasswordSettings from '@/components/admin/ClientPasswordSettings'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient as createSupabaseClient } from '@/lib/supabase/server'
@@ -131,6 +132,14 @@ export default async function AdminClientPage({ params }: Props) {
             </div>
           )
         })}
+      </div>
+
+      <div className="mt-6">
+        <ClientPasswordSettings
+          clientId={client.id}
+          clientSlug={client.slug}
+          currentPassword={(client as any).portal_password ?? null}
+        />
       </div>
     </div>
   )
