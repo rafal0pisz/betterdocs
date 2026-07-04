@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getClientBySlug, getSectionBySlug, getDocumentBySlug } from '@/lib/queries'
 import { createClient } from '@/lib/supabase/server'
+import DocumentBody from '@/components/portal/DocumentBody'
 
 type Props = { params: Promise<{ slug: string; sectionSlug: string; docSlug: string }> }
 
@@ -48,7 +49,7 @@ export default async function DocumentPage({ params }: Props) {
       </div>
 
       {document.body && (
-        <div className="doc-body mb-10" dangerouslySetInnerHTML={{ __html: document.body }} />
+        <DocumentBody html={document.body} documentId={document.id} />
       )}
 
       {events && events.length > 0 && (

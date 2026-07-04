@@ -10,12 +10,14 @@ import TableHeader from '@tiptap/extension-table-header'
 import TableCell from '@tiptap/extension-table-cell'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { common, createLowlight } from 'lowlight'
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Document } from '@/types'
 import EventsTableModal, { type EventRow } from './EventsTableModal'
 import ParametersTableModal, { type ParamRow } from './ParametersTableModal'
+import { CommentHighlightExtension } from '@/lib/tiptap/CommentExtension'
+import CommentsPanel from '@/components/comments/CommentsPanel'
 
 const lowlight = createLowlight(common)
 
@@ -23,6 +25,7 @@ type Props = {
   document: Partial<Document> & { section_id: string; client_id: string }
   clientId: string
   isNew?: boolean
+  adminEmail?: string
 }
 
 function Btn({ onClick, active, title, children }: {
@@ -79,8 +82,9 @@ function slugify(str: string) {
     .slice(0, 80)
 }
 
-export default function DocumentEditor({ document, clientId, isNew = false }: Props) {
+export default function DocumentEditor({ document, clientId, isNew = false, adminEmail }: Props) {
   const router = useRouter()
+  const editorContainerRef = useRef<HTMLDivElement>(null)
   const [title, setTitle] = useState(document.title ?? '')
   const [isPublished, setIsPublished] = useState(document.is_published ?? false)
   const [saving, setSaving] = useState(false)
@@ -119,6 +123,7 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
       Table.configure({ resizable: true }),
       TableRow, TableHeader, TableCell,
       CodeBlockLowlight.configure({ lowlight, defaultLanguage: 'javascript' }),
+      CommentHighlightExtension,
     ],
     content: document.body ?? '',
     editorProps: { attributes: { class: 'doc-body outline-none min-h-[400px]' } },
@@ -263,9 +268,19 @@ export default function DocumentEditor({ document, clientId, isNew = false }: Pr
       )}
 
       {/* Editor */}
-      <div className="bg-white border border-gray-100 rounded-xl px-8 py-6">
+      <div ref={editorContainerRef} className="bg-white border border-gray-100 rounded-xl px-8 py-6">
         <EditorContent editor={editor} />
       </div>
+
+      {docId && (
+        <CommentsPanel
+          documentId={docId}
+          containerRef={editorContainerRef}
+          authorType="admin"
+          authorName={adminEmail ?? 'Admin'}
+          editor={editor}
+        />
+      )}
 
       {/* Events section */}
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">

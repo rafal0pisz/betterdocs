@@ -64,6 +64,16 @@
   .hljs-variable { @apply text-red-400; }
   .hljs-built_in { @apply text-yellow-400; }
 
+  /* Podświetlenie komentowanego fragmentu */
+  .comment-highlight {
+    background-color: #FEF3C7;
+    border-bottom: 2px solid #F59E0B;
+    cursor: pointer;
+  }
+  .comment-highlight:hover {
+    background-color: #FDE68A;
+  }
+
   /* Spis treści */
   .doc-body ul.toc {
     @apply bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 list-none;

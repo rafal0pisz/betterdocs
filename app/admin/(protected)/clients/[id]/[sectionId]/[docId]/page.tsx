@@ -10,10 +10,11 @@ export default async function EditDocumentPage({ params }: Props) {
 
   const supabase = await createClient()
 
-  const [{ data: document }, { data: section }, { data: client }] = await Promise.all([
+  const [{ data: document }, { data: section }, { data: client }, { data: { user } }] = await Promise.all([
     supabase.from('documents').select('*').eq('id', docId).single(),
     supabase.from('sections').select('*').eq('id', sectionId).single(),
     supabase.from('clients').select('*').eq('id', id).single(),
+    supabase.auth.getUser(),
   ])
 
   if (!document || !section || !client) notFound()
@@ -33,6 +34,7 @@ export default async function EditDocumentPage({ params }: Props) {
       <DocumentEditor
         document={document}
         clientId={id}
+        adminEmail={user?.email ?? undefined}
       />
     </div>
   )
