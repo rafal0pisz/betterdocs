@@ -37,8 +37,14 @@ export default function ParametersTableModal({ initialRows, onInsert, onClose }:
   }
 
   function selectParam(key: string, name: string, type: string) {
-    updateRow(key, 'name', name)
-    updateRow(key, 'type', type)
+    const template = GA4_STANDARD_PARAMETERS.find(p => p.name === name)
+    setRows(prev => prev.map(r => r._key !== key ? r : {
+      ...r,
+      name,
+      type: type as ParamRow['type'],
+      description: template?.description ?? r.description,
+      example_value: template?.example ?? r.example_value,
+    }))
     setSearch(p => ({ ...p, [key]: name }))
     setShowDropdown(null)
   }

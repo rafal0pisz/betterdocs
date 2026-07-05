@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { GA4_STANDARD_EVENTS } from '@/lib/ga4-events'
+import { buildDataLayerSnippet, GA4_STANDARD_EVENTS } from '@/lib/ga4-events'
 
 export type EventRow = {
   _key: string
@@ -38,8 +38,15 @@ export default function EventsTableModal({ initialRows, onInsert, onClose }: Pro
   }
 
   function selectEvent(key: string, name: string) {
-    updateRow(key, 'name', name)
-    updateRow(key, 'is_custom', false)
+    const template = GA4_STANDARD_EVENTS.find(e => e.name === name)
+    setRows(prev => prev.map(r => r._key !== key ? r : {
+      ...r,
+      name,
+      is_custom: !template,
+      description: template?.description ?? r.description,
+      parameters: template ? template.parameters.join(', ') : r.parameters,
+      data_layer: template ? buildDataLayerSnippet(template.name, template.parameters) : r.data_layer,
+    }))
     setSearch(p => ({ ...p, [key]: name }))
     setShowDropdown(null)
   }
