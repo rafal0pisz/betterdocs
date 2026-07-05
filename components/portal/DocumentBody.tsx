@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import CommentsPanel from '@/components/comments/CommentsPanel'
 
 type Props = {
@@ -45,6 +45,11 @@ export default function DocumentBody({ html, documentId, eventsSection, paramsSe
     setAuthorClientId(ensureClientId())
   }, [])
 
+  // Kept referentially stable across renders (the refs themselves never
+  // change identity) so CommentsPanel doesn't re-run its highlighting effect
+  // on every unrelated re-render (e.g. authorName changing while typing).
+  const commentRegions = useMemo(() => [{ ref: bodyRef }, { ref: eventsRef }, { ref: paramsRef }], [])
+
   return (
     <>
       {html && <div ref={bodyRef} className="doc-body mb-10" dangerouslySetInnerHTML={{ __html: html }} />}
@@ -52,7 +57,7 @@ export default function DocumentBody({ html, documentId, eventsSection, paramsSe
       {paramsSection && <div ref={paramsRef}>{paramsSection}</div>}
       <CommentsPanel
         documentId={documentId}
-        regions={[{ ref: bodyRef }, { ref: eventsRef }, { ref: paramsRef }]}
+        regions={commentRegions}
         authorType="portal"
         authorName={authorName}
         authorClientId={authorClientId}

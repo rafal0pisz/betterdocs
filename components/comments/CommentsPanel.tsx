@@ -124,6 +124,10 @@ export default function CommentsPanel({ documentId, regions, authorType, authorN
     [authorType, authorName, authorClientId]
   )
 
+  // Admins moderate content, so they can delete any comment - but only edit
+  // their own (editing someone else's words as an admin would be misleading).
+  const canDelete = useCallback((comment: Comment) => authorType === 'admin' || isOwnComment(comment), [authorType, isOwnComment])
+
   const handleSubmitComment = useCallback(async () => {
     if (!pending || !commentDraft.trim() || !resolvedAuthorName) return
     setSubmitting(true)
@@ -260,7 +264,8 @@ export default function CommentsPanel({ documentId, regions, authorType, authorN
               )}
               <CommentRow
                 comment={thread}
-                canManage={isOwnComment(thread)}
+                canEdit={isOwnComment(thread)}
+                canDelete={canDelete(thread)}
                 onSave={(content) => handleUpdateComment(thread.id, content)}
                 onDelete={() => handleDeleteComment(thread.id)}
               />
@@ -268,7 +273,8 @@ export default function CommentsPanel({ documentId, regions, authorType, authorN
                 <div key={reply.id} className="pl-3 border-l border-gray-100">
                   <CommentRow
                     comment={reply}
-                    canManage={isOwnComment(reply)}
+                    canEdit={isOwnComment(reply)}
+                    canDelete={canDelete(reply)}
                     onSave={(content) => handleUpdateComment(reply.id, content)}
                     onDelete={() => handleDeleteComment(reply.id)}
                   />
@@ -304,12 +310,14 @@ export default function CommentsPanel({ documentId, regions, authorType, authorN
 
 function CommentRow({
   comment,
-  canManage,
+  canEdit,
+  canDelete,
   onSave,
   onDelete,
 }: {
   comment: { author_name: string; content: string; created_at: string }
-  canManage: boolean
+  canEdit: boolean
+  canDelete: boolean
   onSave: (content: string) => Promise<void>
   onDelete: () => Promise<void>
 }) {
@@ -365,23 +373,27 @@ function CommentRow({
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-xs font-medium text-gray-900">{comment.author_name}</span>
         <span className="text-[10px] text-gray-400">{formatDate(comment.created_at)}</span>
-        {canManage && (
+        {(canEdit || canDelete) && (
           <span className="flex items-center gap-2 ml-auto">
-            <button type="button" onClick={() => setIsEditing(true)} className="text-[10px] text-gray-400 hover:text-gray-700">
-              Edytuj
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={async () => {
-                if (!window.confirm('Usunąć ten komentarz?')) return
-                setBusy(true)
-                await onDelete()
-              }}
-              className="text-[10px] text-gray-400 hover:text-red-600 disabled:opacity-40"
-            >
-              Usuń
-            </button>
+            {canEdit && (
+              <button type="button" onClick={() => setIsEditing(true)} className="text-[10px] text-gray-400 hover:text-gray-700">
+                Edytuj
+              </button>
+            )}
+            {canDelete && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={async () => {
+                  if (!window.confirm('Usunąć ten komentarz?')) return
+                  setBusy(true)
+                  await onDelete()
+                }}
+                className="text-[10px] text-gray-400 hover:text-red-600 disabled:opacity-40"
+              >
+                Usuń
+              </button>
+            )}
           </span>
         )}
       </div>

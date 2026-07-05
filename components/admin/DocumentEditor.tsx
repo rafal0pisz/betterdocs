@@ -10,7 +10,7 @@ import TableHeader from '@tiptap/extension-table-header'
 import TableCell from '@tiptap/extension-table-cell'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { common, createLowlight } from 'lowlight'
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Document } from '@/types'
@@ -192,6 +192,15 @@ export default function DocumentEditor({ document, clientId, isNew = false, admi
     setTimeout(() => setSaved(false), 2000)
   }, [editor, title, isPublished, document, clientId, isNew, router, eventRows, paramRows, saveEventsAndParams])
 
+  // Kept referentially stable across renders - CommentsPanel re-applies
+  // highlights whenever this array's identity changes, and setCommentHighlights
+  // itself dispatches an editor transaction, which would otherwise re-render
+  // this component and recreate the array, looping forever.
+  const commentRegions = useMemo(
+    () => [{ ref: editorContainerRef, editor }, { ref: eventsSectionRef }, { ref: paramsSectionRef }],
+    [editor]
+  )
+
   if (!editor) return null
 
   return (
@@ -277,11 +286,7 @@ export default function DocumentEditor({ document, clientId, isNew = false, admi
       {docId && (
         <CommentsPanel
           documentId={docId}
-          regions={[
-            { ref: editorContainerRef, editor },
-            { ref: eventsSectionRef },
-            { ref: paramsSectionRef },
-          ]}
+          regions={commentRegions}
           authorType="admin"
           authorName={adminEmail ?? 'Admin'}
         />
