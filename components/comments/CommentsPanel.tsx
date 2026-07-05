@@ -4,8 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   createReply,
   createRootComment,
+  deleteComment,
   getCommentsForDocument,
+  updateComment,
   type AuthorType,
+  type Comment,
   type CommentThread,
 } from '@/lib/comments/queries'
 import { applyHighlights, clearHighlights } from '@/lib/comments/domHighlight'
@@ -17,6 +20,7 @@ type Props = {
   regions: CommentRegion[]
   authorType: AuthorType
   authorName: string
+  authorClientId?: string
   onAuthorNameChange?: (name: string) => void
 }
 
@@ -24,7 +28,7 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString('pl-PL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-export default function CommentsPanel({ documentId, regions, authorType, authorName, onAuthorNameChange }: Props) {
+export default function CommentsPanel({ documentId, regions, authorType, authorName, authorClientId, onAuthorNameChange }: Props) {
   const [threads, setThreads] = useState<CommentThread[]>([])
   const [panelOpen, setPanelOpen] = useState(false)
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
@@ -109,6 +113,17 @@ export default function CommentsPanel({ documentId, regions, authorType, authorN
 
   const resolvedAuthorName = authorType === 'admin' ? authorName : nameDraft.trim()
 
+  // Portal visitors have no accounts, so ownership is matched by a per-browser
+  // id cookie instead. Admins are matched by their (unique) email/author_name.
+  const isOwnComment = useCallback(
+    (comment: Comment) => {
+      if (comment.author_type !== authorType) return false
+      if (authorType === 'admin') return comment.author_name === authorName
+      return !!authorClientId && comment.author_client_id === authorClientId
+    },
+    [authorType, authorName, authorClientId]
+  )
+
   const handleSubmitComment = useCallback(async () => {
     if (!pending || !commentDraft.trim() || !resolvedAuthorName) return
     setSubmitting(true)
@@ -116,6 +131,7 @@ export default function CommentsPanel({ documentId, regions, authorType, authorN
       documentId,
       authorType,
       authorName: resolvedAuthorName,
+      authorClientId,
       content: commentDraft.trim(),
       anchor: pending.anchor,
     })
@@ -124,19 +140,35 @@ export default function CommentsPanel({ documentId, regions, authorType, authorN
     closeComposer()
     setPanelOpen(true)
     await refresh()
-  }, [pending, commentDraft, resolvedAuthorName, documentId, authorType, closeComposer, refresh])
+  }, [pending, commentDraft, resolvedAuthorName, documentId, authorType, authorClientId, closeComposer, refresh])
 
   const handleSubmitReply = useCallback(
     async (parentId: string) => {
       const content = (replyDrafts[parentId] ?? '').trim()
       if (!content || !resolvedAuthorName) return
       setSubmitting(true)
-      await createReply({ documentId, parentId, authorType, authorName: resolvedAuthorName, content })
+      await createReply({ documentId, parentId, authorType, authorName: resolvedAuthorName, authorClientId, content })
       setSubmitting(false)
       setReplyDrafts((prev) => ({ ...prev, [parentId]: '' }))
       await refresh()
     },
-    [replyDrafts, resolvedAuthorName, documentId, authorType, refresh]
+    [replyDrafts, resolvedAuthorName, documentId, authorType, authorClientId, refresh]
+  )
+
+  const handleUpdateComment = useCallback(
+    async (id: string, content: string) => {
+      await updateComment(id, content)
+      await refresh()
+    },
+    [refresh]
+  )
+
+  const handleDeleteComment = useCallback(
+    async (id: string) => {
+      await deleteComment(id)
+      await refresh()
+    },
+    [refresh]
   )
 
   return (
@@ -226,10 +258,20 @@ export default function CommentsPanel({ documentId, regions, authorType, authorN
               {thread.quote && (
                 <p className="text-xs text-gray-400 italic border-l-2 border-amber-300 pl-2 line-clamp-2">&ldquo;{thread.quote}&rdquo;</p>
               )}
-              <CommentRow comment={thread} />
+              <CommentRow
+                comment={thread}
+                canManage={isOwnComment(thread)}
+                onSave={(content) => handleUpdateComment(thread.id, content)}
+                onDelete={() => handleDeleteComment(thread.id)}
+              />
               {thread.replies.map((reply) => (
                 <div key={reply.id} className="pl-3 border-l border-gray-100">
-                  <CommentRow comment={reply} />
+                  <CommentRow
+                    comment={reply}
+                    canManage={isOwnComment(reply)}
+                    onSave={(content) => handleUpdateComment(reply.id, content)}
+                    onDelete={() => handleDeleteComment(reply.id)}
+                  />
                 </div>
               ))}
               <div className="flex items-center gap-2 pt-1">
@@ -260,12 +302,88 @@ export default function CommentsPanel({ documentId, regions, authorType, authorN
   )
 }
 
-function CommentRow({ comment }: { comment: { author_name: string; content: string; created_at: string } }) {
+function CommentRow({
+  comment,
+  canManage,
+  onSave,
+  onDelete,
+}: {
+  comment: { author_name: string; content: string; created_at: string }
+  canManage: boolean
+  onSave: (content: string) => Promise<void>
+  onDelete: () => Promise<void>
+}) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [draft, setDraft] = useState(comment.content)
+  const [busy, setBusy] = useState(false)
+
+  if (isEditing) {
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs font-medium text-gray-900">{comment.author_name}</span>
+          <span className="text-[10px] text-gray-400">{formatDate(comment.created_at)}</span>
+        </div>
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={2}
+          autoFocus
+          className="w-full text-sm border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-gray-400 resize-none"
+        />
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(comment.content)
+              setIsEditing(false)
+            }}
+            className="text-xs text-gray-400 hover:text-gray-600"
+          >
+            Anuluj
+          </button>
+          <button
+            type="button"
+            disabled={busy || !draft.trim()}
+            onClick={async () => {
+              setBusy(true)
+              await onSave(draft.trim())
+              setBusy(false)
+              setIsEditing(false)
+            }}
+            className="text-xs bg-gray-900 text-white px-2.5 py-1 rounded-md disabled:opacity-40"
+          >
+            Zapisz
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div>
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-xs font-medium text-gray-900">{comment.author_name}</span>
         <span className="text-[10px] text-gray-400">{formatDate(comment.created_at)}</span>
+        {canManage && (
+          <span className="flex items-center gap-2 ml-auto">
+            <button type="button" onClick={() => setIsEditing(true)} className="text-[10px] text-gray-400 hover:text-gray-700">
+              Edytuj
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={async () => {
+                if (!window.confirm('Usunąć ten komentarz?')) return
+                setBusy(true)
+                await onDelete()
+              }}
+              className="text-[10px] text-gray-400 hover:text-red-600 disabled:opacity-40"
+            >
+              Usuń
+            </button>
+          </span>
+        )}
       </div>
       <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.content}</p>
     </div>

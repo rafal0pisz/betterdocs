@@ -66,12 +66,13 @@
 
   /* Podświetlenie komentowanego fragmentu */
   .comment-highlight {
-    background-color: #FEF3C7;
-    border-bottom: 2px solid #F59E0B;
+    background-color: #FFD43B;
+    box-shadow: 0 0 0 1px #E8A100;
+    border-radius: 2px;
     cursor: pointer;
   }
   .comment-highlight:hover {
-    background-color: #FDE68A;
+    background-color: #FFC300;
   }
 
   /* Spis treści */

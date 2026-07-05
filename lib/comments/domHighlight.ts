@@ -45,73 +45,100 @@ export function applyHighlights(container: HTMLElement, ranges: HighlightRange[]
     }
   }
 
-  // Apply from the end of the document backwards so earlier offsets stay valid
-  // as later ranges mutate the DOM.
-  for (const range of nonOverlapping.reverse()) {
-    const domRange = offsetsToRange(container, range.start, range.end)
-    if (!domRange) continue
-    wrapRange(domRange, range.id)
+  for (const range of nonOverlapping) {
+    for (const segment of resolveSegments(container, range.start, range.end)) {
+      wrapRange(segment, range.id)
+    }
   }
 }
 
-// Elements a highlight is never allowed to straddle: wrapping a range that
-// partially crosses one of these in the raw DOM (rather than through a
-// structure-aware editor) produces invalid nesting - e.g. a <mark> ending up
-// as a sibling of a <td>, which breaks table layout entirely.
-const BLOCK_BOUNDARY_SELECTOR =
-  'p, li, td, th, tr, table, h1, h2, h3, h4, h5, h6, blockquote, pre, dt, dd'
+// A highlight must never end up straddling a table cell boundary: wrapping a
+// range that partially crosses two different cells in the raw DOM produces
+// invalid nesting and breaks the table's layout entirely. Highlights that
+// span such a boundary (e.g. a quote covering two table cells) are instead
+// split into one <mark> fragment per cell, all sharing the same comment id -
+// visually contiguous, structurally safe.
+//
+// Text that sits directly inside a <table>/<tr> without being inside any
+// <td>/<th> (e.g. whitespace between tags in the source markup) has no safe
+// place for a <mark> at all - such a wrapper would itself become an invalid
+// sibling of <td>. That text is skipped entirely rather than wrapped.
+const SKIP = Symbol('skip')
 
-function nearestBlockAncestor(node: Node, container: HTMLElement): Element | HTMLElement {
+function cellAncestor(node: Node, container: HTMLElement): Element | HTMLElement | typeof SKIP {
   let el: Element | null = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element)
   while (el && el !== container) {
-    if (el.matches(BLOCK_BOUNDARY_SELECTOR)) return el
+    if (el.matches('td, th')) return el
+    if (el.matches('table')) return SKIP
     el = el.parentElement
   }
   return container
 }
 
-function offsetsToRange(container: HTMLElement, start: number, end: number): Range | null {
+// Walks the text nodes covering [start, end) and groups consecutive ones that
+// share the same cell ancestor into a single Range each, dropping any that
+// fall outside a valid cell.
+function resolveSegments(container: HTMLElement, start: number, end: number): Range[] {
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT)
+  const segments: Range[] = []
   let offset = 0
-  let startNode: Text | null = null
-  let startOffset = 0
-  let endNode: Text | null = null
-  let endOffset = 0
+  let currentAncestor: Element | HTMLElement | null = null
   let node: Text | null
 
   while ((node = walker.nextNode() as Text | null)) {
-    const len = node.data.length
-    if (startNode === null && offset + len >= start) {
-      startNode = node
-      startOffset = start - offset
-    }
-    if (endNode === null && offset + len >= end) {
-      endNode = node
-      endOffset = end - offset
-      break
-    }
-    offset += len
-  }
-  if (!startNode || !endNode) return null
+    const nodeStart = offset
+    const nodeEnd = offset + node.data.length
+    offset = nodeEnd
+    if (nodeEnd <= start) continue
+    if (nodeStart >= end) break
 
-  // Refuse to wrap a range that crosses a block boundary (different table
-  // cells/rows, paragraphs, headings, ...) - doing so would produce invalid
-  // HTML nesting. The comment is still saved, it just won't be highlighted.
-  if (nearestBlockAncestor(startNode, container) !== nearestBlockAncestor(endNode, container)) {
-    return null
-  }
+    const ancestor = cellAncestor(node, container)
+    if (ancestor === SKIP) {
+      currentAncestor = null
+      continue
+    }
 
-  const range = document.createRange()
-  range.setStart(startNode, startOffset)
-  range.setEnd(endNode, endOffset)
-  return range
+    const segStart = Math.max(0, start - nodeStart)
+    const segEnd = Math.min(node.data.length, end - nodeStart)
+
+    const current = segments[segments.length - 1]
+    if (current && ancestor === currentAncestor) {
+      current.setEnd(node, segEnd)
+    } else {
+      const range = document.createRange()
+      range.setStart(node, segStart)
+      range.setEnd(node, segEnd)
+      segments.push(range)
+      currentAncestor = ancestor
+    }
+  }
+  return segments
 }
 
 function wrapRange(range: Range, commentId: string) {
+  // extractContents() can leave a now-empty inline ancestor behind when a
+  // boundary sits inside it (e.g. highlighting from the very start of a
+  // <strong> leaves a stray <strong></strong> next to the new <mark>).
+  // Harmless when the element has no styling of its own, but elements like
+  // <code> render a visible box even with no text - so prune them.
+  const startParent = range.startContainer.parentElement
+  const endParent = range.endContainer.parentElement
+
   const mark = document.createElement('mark')
   mark.className = 'comment-highlight'
   mark.dataset.commentId = commentId
   const fragment = range.extractContents()
   mark.appendChild(fragment)
   range.insertNode(mark)
+
+  removeIfNowEmpty(startParent)
+  removeIfNowEmpty(endParent)
+}
+
+function removeIfNowEmpty(el: Element | null) {
+  // extractContents() can leave a zero-length text node behind rather than
+  // removing it outright, so check textContent rather than childNodes.length.
+  if (el && el.textContent === '' && el.tagName.toLowerCase() !== 'mark' && el.parentNode) {
+    el.remove()
+  }
 }
