@@ -54,6 +54,22 @@ export function applyHighlights(container: HTMLElement, ranges: HighlightRange[]
   }
 }
 
+// Elements a highlight is never allowed to straddle: wrapping a range that
+// partially crosses one of these in the raw DOM (rather than through a
+// structure-aware editor) produces invalid nesting - e.g. a <mark> ending up
+// as a sibling of a <td>, which breaks table layout entirely.
+const BLOCK_BOUNDARY_SELECTOR =
+  'p, li, td, th, tr, table, h1, h2, h3, h4, h5, h6, blockquote, pre, dt, dd'
+
+function nearestBlockAncestor(node: Node, container: HTMLElement): Element | HTMLElement {
+  let el: Element | null = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element)
+  while (el && el !== container) {
+    if (el.matches(BLOCK_BOUNDARY_SELECTOR)) return el
+    el = el.parentElement
+  }
+  return container
+}
+
 function offsetsToRange(container: HTMLElement, start: number, end: number): Range | null {
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT)
   let offset = 0
@@ -77,6 +93,13 @@ function offsetsToRange(container: HTMLElement, start: number, end: number): Ran
     offset += len
   }
   if (!startNode || !endNode) return null
+
+  // Refuse to wrap a range that crosses a block boundary (different table
+  // cells/rows, paragraphs, headings, ...) - doing so would produce invalid
+  // HTML nesting. The comment is still saved, it just won't be highlighted.
+  if (nearestBlockAncestor(startNode, container) !== nearestBlockAncestor(endNode, container)) {
+    return null
+  }
 
   const range = document.createRange()
   range.setStart(startNode, startOffset)

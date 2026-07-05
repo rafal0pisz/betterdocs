@@ -1,7 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
-import type { Editor } from '@tiptap/core'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   createReply,
   createRootComment,
@@ -11,22 +10,21 @@ import {
 } from '@/lib/comments/queries'
 import { applyHighlights, clearHighlights } from '@/lib/comments/domHighlight'
 import { findAnchorRange } from '@/lib/comments/textAnchor'
-import { useTextSelectionComment } from './useTextSelectionComment'
+import { useTextSelectionComment, type CommentRegion } from './useTextSelectionComment'
 
 type Props = {
   documentId: string
-  containerRef: RefObject<HTMLElement | null>
+  regions: CommentRegion[]
   authorType: AuthorType
   authorName: string
   onAuthorNameChange?: (name: string) => void
-  editor?: Editor | null
 }
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString('pl-PL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-export default function CommentsPanel({ documentId, containerRef, authorType, authorName, onAuthorNameChange, editor }: Props) {
+export default function CommentsPanel({ documentId, regions, authorType, authorName, onAuthorNameChange }: Props) {
   const [threads, setThreads] = useState<CommentThread[]>([])
   const [panelOpen, setPanelOpen] = useState(false)
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
@@ -36,7 +34,7 @@ export default function CommentsPanel({ documentId, containerRef, authorType, au
   const [submitting, setSubmitting] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
 
-  const { pending, isComposerOpen, openComposer, closeComposer } = useTextSelectionComment(containerRef)
+  const { pending, isComposerOpen, openComposer, closeComposer } = useTextSelectionComment(regions)
 
   useEffect(() => {
     if (!nameDraft && authorName) setNameDraft(authorName)
@@ -51,35 +49,39 @@ export default function CommentsPanel({ documentId, containerRef, authorType, au
   }, [refresh])
 
   // Re-anchor and highlight resolved threads whenever the comment list changes.
+  // Each region resolves independently: a TipTap-backed region highlights via
+  // ProseMirror decorations, everything else via direct DOM wrapping.
   useEffect(() => {
     const anchored = threads
       .filter((t) => t.quote)
       .map((t) => ({ id: t.id, anchor: { quote: t.quote as string, prefix: t.quote_prefix ?? '', suffix: t.quote_suffix ?? '' } }))
 
-    if (editor) {
-      editor.commands.setCommentHighlights(anchored)
-      return
+    const cleanups: Array<() => void> = []
+
+    for (const region of regions) {
+      if (region.editor) {
+        region.editor.commands.setCommentHighlights(anchored)
+        continue
+      }
+
+      const container = region.ref.current
+      if (!container) continue
+      const fullText = container.textContent ?? ''
+      const ranges = anchored
+        .map(({ id, anchor }) => {
+          const range = findAnchorRange(fullText, anchor)
+          return range ? { id, start: range.start, end: range.end } : null
+        })
+        .filter((r): r is { id: string; start: number; end: number } => r !== null)
+      applyHighlights(container, ranges)
+      cleanups.push(() => clearHighlights(container))
     }
 
-    const container = containerRef.current
-    if (!container) return
-    const fullText = container.textContent ?? ''
-    const ranges = anchored
-      .map(({ id, anchor }) => {
-        const range = findAnchorRange(fullText, anchor)
-        return range ? { id, start: range.start, end: range.end } : null
-      })
-      .filter((r): r is { id: string; start: number; end: number } => r !== null)
-    applyHighlights(container, ranges)
-    return () => {
-      clearHighlights(container)
-    }
-  }, [threads, editor, containerRef])
+    return () => cleanups.forEach((cleanup) => cleanup())
+  }, [threads, regions])
 
-  // Clicking a highlighted passage opens the panel and jumps to its thread.
+  // Clicking a highlighted passage in any region opens the panel and jumps to its thread.
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
     function handleClick(event: MouseEvent) {
       const mark = (event.target as HTMLElement).closest('[data-comment-id]') as HTMLElement | null
       const id = mark?.getAttribute('data-comment-id')
@@ -87,9 +89,10 @@ export default function CommentsPanel({ documentId, containerRef, authorType, au
       setPanelOpen(true)
       setActiveThreadId(id)
     }
-    container.addEventListener('click', handleClick)
-    return () => container.removeEventListener('click', handleClick)
-  }, [containerRef])
+    const containers = regions.map((r) => r.ref.current).filter((c): c is HTMLElement => c !== null)
+    containers.forEach((c) => c.addEventListener('click', handleClick))
+    return () => containers.forEach((c) => c.removeEventListener('click', handleClick))
+  }, [regions])
 
   useEffect(() => {
     if (!activeThreadId || !panelOpen) return
@@ -257,14 +260,11 @@ export default function CommentsPanel({ documentId, containerRef, authorType, au
   )
 }
 
-function CommentRow({ comment }: { comment: { author_name: string; content: string; created_at: string; author_type: AuthorType } }) {
+function CommentRow({ comment }: { comment: { author_name: string; content: string; created_at: string } }) {
   return (
     <div>
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-xs font-medium text-gray-900">{comment.author_name}</span>
-        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${comment.author_type === 'admin' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'}`}>
-          {comment.author_type === 'admin' ? 'Zespół' : 'Klient'}
-        </span>
         <span className="text-[10px] text-gray-400">{formatDate(comment.created_at)}</span>
       </div>
       <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.content}</p>

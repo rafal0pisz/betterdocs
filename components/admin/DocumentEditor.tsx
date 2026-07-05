@@ -85,6 +85,8 @@ function slugify(str: string) {
 export default function DocumentEditor({ document, clientId, isNew = false, adminEmail }: Props) {
   const router = useRouter()
   const editorContainerRef = useRef<HTMLDivElement>(null)
+  const eventsSectionRef = useRef<HTMLDivElement>(null)
+  const paramsSectionRef = useRef<HTMLDivElement>(null)
   const [title, setTitle] = useState(document.title ?? '')
   const [isPublished, setIsPublished] = useState(document.is_published ?? false)
   const [saving, setSaving] = useState(false)
@@ -275,15 +277,18 @@ export default function DocumentEditor({ document, clientId, isNew = false, admi
       {docId && (
         <CommentsPanel
           documentId={docId}
-          containerRef={editorContainerRef}
+          regions={[
+            { ref: editorContainerRef, editor },
+            { ref: eventsSectionRef },
+            { ref: paramsSectionRef },
+          ]}
           authorType="admin"
           authorName={adminEmail ?? 'Admin'}
-          editor={editor}
         />
       )}
 
       {/* Events section */}
-      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+      <div ref={eventsSectionRef} className="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: '#FFF0F0', color: '#FF8282' }}>EV</span>
@@ -326,7 +331,7 @@ export default function DocumentEditor({ document, clientId, isNew = false, admi
       </div>
 
       {/* Parameters section */}
-      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+      <div ref={paramsSectionRef} className="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold px-2 py-0.5 rounded bg-gray-900 text-white">EP</span>

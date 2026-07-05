@@ -48,90 +48,93 @@ export default async function DocumentPage({ params }: Props) {
         <p className="text-xs text-gray-400">Last updated: {formatDate(document.updated_at)}</p>
       </div>
 
-      {document.body && (
-        <DocumentBody html={document.body} documentId={document.id} />
-      )}
-
-      {events && events.length > 0 && (
-        <div className="mb-8">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: '#FFF0F0', color: '#FF8282' }}>EV</span>
-            <h2 className="text-sm font-semibold text-gray-900">Events</h2>
-          </div>
-          <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[600px]">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Event</th>
-                    <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Description</th>
-                    <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Parameters</th>
-                    <th className="text-left text-xs font-medium text-gray-500 px-5 py-3 w-28">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {events.map((e: any) => (
-                    <tr key={e.id}>
-                      <td className="px-5 py-3 font-mono text-sm font-medium" style={{ color: '#FF8282' }}>{e.name}</td>
-                      <td className="px-5 py-3 text-gray-600 text-sm">{e.description || '—'}</td>
-                      <td className="px-5 py-3 text-gray-500 text-xs font-mono">{e.parameters || '—'}</td>
-                      <td className="px-5 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[e.status] ?? ''}`}>{e.status}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {events.filter((e: any) => e.data_layer).length > 0 && (
-              <div className="border-t border-gray-100 px-5 py-4 space-y-4">
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">dataLayer.push() examples</p>
-                {events.filter((e: any) => e.data_layer).map((e: any) => (
-                  <div key={e.id}>
-                    <p className="text-xs font-mono font-medium mb-1.5" style={{ color: '#FF8282' }}>{e.name}</p>
-                    <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 text-xs overflow-x-auto font-mono leading-relaxed whitespace-pre">{e.data_layer}</pre>
-                  </div>
-                ))}
+      <DocumentBody
+        html={document.body}
+        documentId={document.id}
+        eventsSection={
+          events && events.length > 0 ? (
+            <div className="mb-8">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: '#FFF0F0', color: '#FF8282' }}>EV</span>
+                <h2 className="text-sm font-semibold text-gray-900">Events</h2>
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {parameters && parameters.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs font-bold px-2 py-0.5 rounded bg-gray-900 text-white">EP</span>
-            <h2 className="text-sm font-semibold text-gray-900">Parameters</h2>
-          </div>
-          <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[600px]">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    {['Parameter', 'Description', 'Type', 'Example', 'Status'].map(h => (
-                      <th key={h} className="text-left text-xs font-medium text-gray-500 px-5 py-3">{h}</th>
+              <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[600px]">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100">
+                        <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Event</th>
+                        <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Description</th>
+                        <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Parameters</th>
+                        <th className="text-left text-xs font-medium text-gray-500 px-5 py-3 w-28">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {events.map((e: any) => (
+                        <tr key={e.id}>
+                          <td className="px-5 py-3 font-mono text-sm font-medium" style={{ color: '#FF8282' }}>{e.name}</td>
+                          <td className="px-5 py-3 text-gray-600 text-sm">{e.description || '—'}</td>
+                          <td className="px-5 py-3 text-gray-500 text-xs font-mono">{e.parameters || '—'}</td>
+                          <td className="px-5 py-3">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[e.status] ?? ''}`}>{e.status}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {events.filter((e: any) => e.data_layer).length > 0 && (
+                  <div className="border-t border-gray-100 px-5 py-4 space-y-4">
+                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">dataLayer.push() examples</p>
+                    {events.filter((e: any) => e.data_layer).map((e: any) => (
+                      <div key={e.id}>
+                        <p className="text-xs font-mono font-medium mb-1.5" style={{ color: '#FF8282' }}>{e.name}</p>
+                        <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 text-xs overflow-x-auto font-mono leading-relaxed whitespace-pre">{e.data_layer}</pre>
+                      </div>
                     ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {parameters.map((p: any) => (
-                    <tr key={p.id}>
-                      <td className="px-5 py-3 font-mono text-sm font-medium text-gray-900">{p.name}</td>
-                      <td className="px-5 py-3 text-gray-600 text-sm">{p.description || '—'}</td>
-                      <td className="px-5 py-3 font-mono text-xs text-gray-500">{p.type}</td>
-                      <td className="px-5 py-3 text-gray-500 text-sm">{p.example_value || '—'}</td>
-                      <td className="px-5 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[p.status] ?? ''}`}>{p.status}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          ) : undefined
+        }
+        paramsSection={
+          parameters && parameters.length > 0 ? (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-bold px-2 py-0.5 rounded bg-gray-900 text-white">EP</span>
+                <h2 className="text-sm font-semibold text-gray-900">Parameters</h2>
+              </div>
+              <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[600px]">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100">
+                        {['Parameter', 'Description', 'Type', 'Example', 'Status'].map(h => (
+                          <th key={h} className="text-left text-xs font-medium text-gray-500 px-5 py-3">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {parameters.map((p: any) => (
+                        <tr key={p.id}>
+                          <td className="px-5 py-3 font-mono text-sm font-medium text-gray-900">{p.name}</td>
+                          <td className="px-5 py-3 text-gray-600 text-sm">{p.description || '—'}</td>
+                          <td className="px-5 py-3 font-mono text-xs text-gray-500">{p.type}</td>
+                          <td className="px-5 py-3 text-gray-500 text-sm">{p.example_value || '—'}</td>
+                          <td className="px-5 py-3">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[p.status] ?? ''}`}>{p.status}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : undefined
+        }
+      />
     </div>
   )
 }

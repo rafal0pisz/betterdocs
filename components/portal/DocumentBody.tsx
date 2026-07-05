@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import CommentsPanel from '@/components/comments/CommentsPanel'
 
 type Props = {
-  html: string
+  html: string | null
   documentId: string
+  eventsSection?: ReactNode
+  paramsSection?: ReactNode
 }
 
 const NAME_COOKIE = 'portal_commenter_name'
@@ -19,8 +21,10 @@ function setCookie(name: string, value: string) {
   document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${60 * 60 * 24 * 365}; path=/; samesite=lax`
 }
 
-export default function DocumentBody({ html, documentId }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null)
+export default function DocumentBody({ html, documentId, eventsSection, paramsSection }: Props) {
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const eventsRef = useRef<HTMLDivElement>(null)
+  const paramsRef = useRef<HTMLDivElement>(null)
   const [authorName, setAuthorName] = useState('')
 
   useEffect(() => {
@@ -29,10 +33,12 @@ export default function DocumentBody({ html, documentId }: Props) {
 
   return (
     <>
-      <div ref={containerRef} className="doc-body mb-10" dangerouslySetInnerHTML={{ __html: html }} />
+      {html && <div ref={bodyRef} className="doc-body mb-10" dangerouslySetInnerHTML={{ __html: html }} />}
+      {eventsSection && <div ref={eventsRef}>{eventsSection}</div>}
+      {paramsSection && <div ref={paramsRef}>{paramsSection}</div>}
       <CommentsPanel
         documentId={documentId}
-        containerRef={containerRef}
+        regions={[{ ref: bodyRef }, { ref: eventsRef }, { ref: paramsRef }]}
         authorType="portal"
         authorName={authorName}
         onAuthorNameChange={(name) => {
