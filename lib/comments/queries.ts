@@ -21,7 +21,7 @@ export type CommentThread = Comment & { replies: Comment[] }
 export async function getCommentsForDocument(documentId: string): Promise<CommentThread[]> {
   const supabase = createClient()
   const { data, error } = await supabase
-    .from('comments')
+    .from('document_comments')
     .select('*')
     .eq('document_id', documentId)
     .order('created_at', { ascending: true })
@@ -48,7 +48,7 @@ export async function createRootComment(params: {
   anchor: TextAnchor
 }): Promise<{ error: string | null }> {
   const supabase = createClient()
-  const { error } = await supabase.from('comments').insert({
+  const { error } = await supabase.from('document_comments').insert({
     document_id: params.documentId,
     author_type: params.authorType,
     author_name: params.authorName,
@@ -68,7 +68,7 @@ export async function createReply(params: {
   content: string
 }): Promise<{ error: string | null }> {
   const supabase = createClient()
-  const { error } = await supabase.from('comments').insert({
+  const { error } = await supabase.from('document_comments').insert({
     document_id: params.documentId,
     parent_id: params.parentId,
     author_type: params.authorType,
