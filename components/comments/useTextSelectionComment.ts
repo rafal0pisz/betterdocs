@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { Editor } from '@tiptap/core'
 import { getSelectionOffsets } from '@/lib/comments/domHighlight'
 import { buildAnchor, type TextAnchor } from '@/lib/comments/textAnchor'
@@ -17,9 +17,13 @@ export type CommentRegion = {
 
 export type PendingSelection = { anchor: TextAnchor; rect: DOMRect }
 
+const SELECTION_SETTLE_MS = 250
+
 export function useTextSelectionComment(regions: CommentRegion[]) {
   const [pending, setPending] = useState<PendingSelection | null>(null)
   const [isComposerOpen, setIsComposerOpen] = useState(false)
+  const isComposerOpenRef = useRef(isComposerOpen)
+  isComposerOpenRef.current = isComposerOpen
 
   const openComposer = useCallback(() => setIsComposerOpen(true), [])
 
@@ -30,8 +34,10 @@ export function useTextSelectionComment(regions: CommentRegion[]) {
   }, [])
 
   useEffect(() => {
-    function handleMouseUp() {
-      if (isComposerOpen) return
+    let settleTimer: ReturnType<typeof setTimeout> | null = null
+
+    function computePendingFromSelection() {
+      if (isComposerOpenRef.current) return
       const selection = window.getSelection()
       if (!selection || selection.isCollapsed || selection.rangeCount === 0) return
       const range = selection.getRangeAt(0)
@@ -47,10 +53,23 @@ export function useTextSelectionComment(regions: CommentRegion[]) {
       setPending({ anchor, rect })
     }
 
-    function handleMouseDown(event: MouseEvent) {
+    // Desktop: the mouse button release is a reliable "selection finished" signal.
+    function handleMouseUp() {
+      computePendingFromSelection()
+    }
+
+    // Touch devices select text by dragging native handles after a long-press,
+    // which never fires mouseup. selectionchange does fire throughout that
+    // drag, so debounce it and act once the selection settles.
+    function handleSelectionChange() {
+      if (settleTimer) clearTimeout(settleTimer)
+      settleTimer = setTimeout(computePendingFromSelection, SELECTION_SETTLE_MS)
+    }
+
+    function handlePointerDown(event: Event) {
       const target = event.target as HTMLElement
       if (target.closest('[data-comment-composer]')) return
-      if (isComposerOpen) {
+      if (isComposerOpenRef.current) {
         closeComposer()
       } else {
         setPending(null)
@@ -58,12 +77,17 @@ export function useTextSelectionComment(regions: CommentRegion[]) {
     }
 
     document.addEventListener('mouseup', handleMouseUp)
-    document.addEventListener('mousedown', handleMouseDown)
+    document.addEventListener('selectionchange', handleSelectionChange)
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('touchstart', handlePointerDown)
     return () => {
       document.removeEventListener('mouseup', handleMouseUp)
-      document.removeEventListener('mousedown', handleMouseDown)
+      document.removeEventListener('selectionchange', handleSelectionChange)
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('touchstart', handlePointerDown)
+      if (settleTimer) clearTimeout(settleTimer)
     }
-  }, [regions, isComposerOpen, closeComposer])
+  }, [regions, closeComposer])
 
   return { pending, isComposerOpen, openComposer, closeComposer }
 }
