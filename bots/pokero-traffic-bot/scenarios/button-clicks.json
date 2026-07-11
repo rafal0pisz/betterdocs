@@ -1,0 +1,33 @@
+{
+  "name": "Button click journey",
+  "weight": 3,
+  "steps": [
+    { "action": "goto", "path": "/pl" },
+    { "action": "wait", "minMs": 500, "maxMs": 1200 },
+    { "action": "scroll", "mode": "human", "distance": 400, "steps": 3 },
+    {
+      "action": "click",
+      "selector": "nav button:visible, nav a:visible",
+      "pick": "random",
+      "optional": true,
+      "waitForNavigation": true
+    },
+    { "action": "wait", "minMs": 800, "maxMs": 1800 },
+    { "action": "scroll", "mode": "human", "distance": 600, "steps": 4 },
+    {
+      "action": "click",
+      "selector": "button:visible, a.btn:visible, [role='button']:visible",
+      "pick": "random",
+      "optional": true
+    },
+    { "action": "wait", "minMs": 600, "maxMs": 1500 },
+    { "action": "scroll", "mode": "toBottom" },
+    { "action": "wait", "minMs": 400, "maxMs": 1000 },
+    {
+      "action": "click",
+      "selector": "footer button:visible, footer a:visible",
+      "pick": "random",
+      "optional": true
+    }
+  ]
+}
