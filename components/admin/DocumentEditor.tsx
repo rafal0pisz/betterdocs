@@ -157,20 +157,35 @@ export default function DocumentEditor({ document, clientId, isNew = false, admi
 
   const saveEventsAndParams = useCallback(async (currentDocId: string, events: EventRow[], params: ParamRow[]) => {
     const supabase = createClient()
-    await supabase.from('structured_events').delete().eq('document_id', currentDocId)
-    await supabase.from('structured_parameters').delete().eq('document_id', currentDocId)
+
+    // Capture the previous rows' ids *before* touching anything, and only
+    // delete them *after* the new rows are safely inserted. A failed insert
+    // (e.g. a pending migration) then leaves the previous data completely
+    // untouched, instead of wiping it with nothing to replace it.
+    const [{ data: oldEvents }, { data: oldParams }] = await Promise.all([
+      supabase.from('structured_events').select('id').eq('document_id', currentDocId),
+      supabase.from('structured_parameters').select('id').eq('document_id', currentDocId),
+    ])
+
     if (events.length > 0) {
-      await supabase.from('structured_events').insert(events.map((e, i) => ({
+      const { error } = await supabase.from('structured_events').insert(events.map((e, i) => ({
         client_id: document.client_id, document_id: currentDocId,
         name: e.name, is_custom: e.is_custom, description: e.description, parameters: e.parameters, data_layer: e.data_layer, status: e.status, platform: e.platform, order_index: i,
       })))
+      if (error) throw new Error(`Failed to save events: ${error.message}`)
     }
     if (params.length > 0) {
-      await supabase.from('structured_parameters').insert(params.map((p, i) => ({
+      const { error } = await supabase.from('structured_parameters').insert(params.map((p, i) => ({
         client_id: document.client_id, document_id: currentDocId,
         name: p.name, description: p.description, type: p.type, example_value: p.example_value, status: p.status, order_index: i,
       })))
+      if (error) throw new Error(`Failed to save parameters: ${error.message}`)
     }
+
+    const oldEventIds = (oldEvents ?? []).map((r) => r.id)
+    const oldParamIds = (oldParams ?? []).map((r) => r.id)
+    if (oldEventIds.length > 0) await supabase.from('structured_events').delete().in('id', oldEventIds)
+    if (oldParamIds.length > 0) await supabase.from('structured_parameters').delete().in('id', oldParamIds)
   }, [document.client_id])
 
   const handleSave = useCallback(async (publish?: boolean) => {
@@ -182,21 +197,32 @@ export default function DocumentEditor({ document, clientId, isNew = false, admi
     const shouldPublish = publish !== undefined ? publish : isPublished
     const payload = { title, body, slug: slugify(title) || 'document', is_published: shouldPublish, section_id: document.section_id, client_id: document.client_id }
 
-    if (isNew) {
-      const { data, error } = await supabase.from('documents').insert(payload).select().single()
-      if (!error && data) {
-        setDocId(data.id)
-        await saveEventsAndParams(data.id, eventRows, paramRows)
-        router.replace(`/admin/clients/${clientId}/${document.section_id}/${data.id}`)
+    try {
+      if (isNew) {
+        const { data, error } = await supabase.from('documents').insert(payload).select().single()
+        if (error) throw new Error(`Failed to save document: ${error.message}`)
+        if (data) {
+          setDocId(data.id)
+          await saveEventsAndParams(data.id, eventRows, paramRows)
+          router.replace(`/admin/clients/${clientId}/${document.section_id}/${data.id}`)
+        }
+      } else {
+        const { error } = await supabase.from('documents').update(payload).eq('id', document.id!)
+        if (error) throw new Error(`Failed to save document: ${error.message}`)
+        await saveEventsAndParams(document.id!, eventRows, paramRows)
+        if (publish !== undefined) setIsPublished(publish)
       }
-    } else {
-      await supabase.from('documents').update(payload).eq('id', document.id!)
-      await saveEventsAndParams(document.id!, eventRows, paramRows)
-      if (publish !== undefined) setIsPublished(publish)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      alert(
+        `Save failed: ${err instanceof Error ? err.message : String(err)}\n\n` +
+        'Your previous events/parameters were left untouched - only this save was blocked. ' +
+        'This usually means a database migration hasn\'t been applied yet - check with whoever manages the Supabase project before retrying.'
+      )
+    } finally {
+      setSaving(false)
     }
-
-    setSaving(false); setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
   }, [editor, title, isPublished, document, clientId, isNew, router, eventRows, paramRows, saveEventsAndParams])
 
   // Kept referentially stable across renders - CommentsPanel re-applies
