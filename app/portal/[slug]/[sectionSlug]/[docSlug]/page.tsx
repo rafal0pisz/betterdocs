@@ -16,6 +16,13 @@ const STATUS_COLORS: Record<string, string> = {
   'To verify':   'bg-blue-50 text-blue-600',
 }
 
+const PLATFORM_LABELS: Record<string, string> = { web: 'Web', ios: 'iOS', android: 'Android' }
+const PLATFORM_COLORS: Record<string, string> = {
+  web: 'bg-gray-100 text-gray-600',
+  ios: 'bg-slate-100 text-slate-700',
+  android: 'bg-emerald-50 text-emerald-700',
+}
+
 export default async function DocumentPage({ params }: Props) {
   const { slug, sectionSlug, docSlug } = await params
   const client = await getClientBySlug(slug)
@@ -66,6 +73,7 @@ export default async function DocumentPage({ params }: Props) {
                         <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Event</th>
                         <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Description</th>
                         <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Parameters</th>
+                        <th className="text-left text-xs font-medium text-gray-500 px-5 py-3 w-20">Platform</th>
                         <th className="text-left text-xs font-medium text-gray-500 px-5 py-3 w-28">Status</th>
                       </tr>
                     </thead>
@@ -76,6 +84,9 @@ export default async function DocumentPage({ params }: Props) {
                           <td className="px-5 py-3 text-gray-600 text-sm">{e.description || '—'}</td>
                           <td className="px-5 py-3 text-gray-500 text-xs font-mono">{e.parameters || '—'}</td>
                           <td className="px-5 py-3">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PLATFORM_COLORS[e.platform ?? 'web']}`}>{PLATFORM_LABELS[e.platform ?? 'web']}</span>
+                          </td>
+                          <td className="px-5 py-3">
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[e.status] ?? ''}`}>{e.status}</span>
                           </td>
                         </tr>
@@ -85,10 +96,13 @@ export default async function DocumentPage({ params }: Props) {
                 </div>
                 {events.filter((e: any) => e.data_layer).length > 0 && (
                   <div className="border-t border-gray-100 px-5 py-4 space-y-4">
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">dataLayer.push() examples</p>
+                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Code examples</p>
                     {events.filter((e: any) => e.data_layer).map((e: any) => (
                       <div key={e.id}>
-                        <p className="text-xs font-mono font-medium mb-1.5" style={{ color: '#FF8282' }}>{e.name}</p>
+                        <p className="text-xs font-mono font-medium mb-1.5 flex items-center gap-2" style={{ color: '#FF8282' }}>
+                          {e.name}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium normal-case ${PLATFORM_COLORS[e.platform ?? 'web']}`}>{PLATFORM_LABELS[e.platform ?? 'web']}</span>
+                        </p>
                         <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 text-xs overflow-x-auto font-mono leading-relaxed whitespace-pre">{e.data_layer}</pre>
                       </div>
                     ))}

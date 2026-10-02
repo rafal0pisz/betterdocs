@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { buildDataLayerSnippet, GA4_STANDARD_EVENTS } from '@/lib/ga4-events'
+import { buildCodeSnippet, GA4_STANDARD_EVENTS, type EventPlatform } from '@/lib/ga4-events'
 
 export type EventRow = {
   _key: string
@@ -11,6 +11,7 @@ export type EventRow = {
   parameters: string
   data_layer: string
   status: 'Planned' | 'Implemented' | 'To verify'
+  platform: EventPlatform
 }
 
 type Props = {
@@ -20,9 +21,20 @@ type Props = {
 }
 
 const STATUS_OPTIONS = ['Planned', 'Implemented', 'To verify']
+const PLATFORM_OPTIONS: { value: EventPlatform; label: string }[] = [
+  { value: 'web', label: 'Web' },
+  { value: 'ios', label: 'iOS' },
+  { value: 'android', label: 'Android' },
+]
+
+const SNIPPET_LABEL: Record<EventPlatform, string> = {
+  web: 'dataLayer.push() — optional',
+  ios: 'Swift snippet (iOS) — optional',
+  android: 'Kotlin snippet (Android) — optional',
+}
 
 function newRow(): EventRow {
-  return { _key: Math.random().toString(36).slice(2), name: '', is_custom: false, description: '', parameters: '', data_layer: '', status: 'Planned' }
+  return { _key: Math.random().toString(36).slice(2), name: '', is_custom: false, description: '', parameters: '', data_layer: '', status: 'Planned', platform: 'web' }
 }
 
 export default function EventsTableModal({ initialRows, onInsert, onClose }: Props) {
@@ -45,10 +57,18 @@ export default function EventsTableModal({ initialRows, onInsert, onClose }: Pro
       is_custom: !template,
       description: template?.description ?? r.description,
       parameters: template ? template.parameters.join(', ') : r.parameters,
-      data_layer: template ? buildDataLayerSnippet(template.name, template.parameters) : r.data_layer,
+      data_layer: template ? buildCodeSnippet(r.platform, template.name, template.parameters) : r.data_layer,
     }))
     setSearch(p => ({ ...p, [key]: name }))
     setShowDropdown(null)
+  }
+
+  function selectPlatform(key: string, platform: EventPlatform) {
+    setRows(prev => prev.map(r => {
+      if (r._key !== key) return r
+      const paramNames = r.parameters.split(',').map(p => p.trim()).filter(Boolean)
+      return { ...r, platform, data_layer: buildCodeSnippet(platform, r.name, paramNames) }
+    }))
   }
 
   function handleSearch(key: string, val: string) {
@@ -83,8 +103,18 @@ export default function EventsTableModal({ initialRows, onInsert, onClose }: Pro
             <div key={row._key} className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-gray-400">Event #{idx + 1}</span>
-                <button onClick={() => removeRow(row._key)} disabled={rows.length === 1}
-                  className="text-xs text-gray-300 hover:text-red-400 transition-colors disabled:opacity-30">Remove</button>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5">
+                    {PLATFORM_OPTIONS.map(opt => (
+                      <button key={opt.value} type="button" onClick={() => selectPlatform(row._key, opt.value)}
+                        className={`px-2 py-1 text-[10px] font-medium rounded-md transition-colors ${row.platform === opt.value ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700'}`}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => removeRow(row._key)} disabled={rows.length === 1}
+                    className="text-xs text-gray-300 hover:text-red-400 transition-colors disabled:opacity-30">Remove</button>
+                </div>
               </div>
 
               {/* Row 1: name + description + status */}
@@ -147,10 +177,10 @@ export default function EventsTableModal({ initialRows, onInsert, onClose }: Pro
                   className="w-full px-2.5 py-2 text-xs font-mono border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-gray-400" />
               </div>
 
-              {/* Row 3: dataLayer */}
+              {/* Row 3: snippet */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] font-medium text-gray-400">dataLayer.push() — optional</label>
+                  <label className="text-[10px] font-medium text-gray-400">{SNIPPET_LABEL[row.platform]}</label>
                   <button onClick={() => setExpandedDL(expandedDL === row._key ? null : row._key)}
                     className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors">
                     {expandedDL === row._key ? 'Collapse' : 'Expand'}
@@ -159,7 +189,9 @@ export default function EventsTableModal({ initialRows, onInsert, onClose }: Pro
                 <textarea
                   value={row.data_layer}
                   onChange={e => updateRow(row._key, 'data_layer', e.target.value)}
-                  placeholder={'dataLayer.push({\n  event: \'' + (row.name || 'event_name') + '\',\n  // parameters here\n});'}
+                  placeholder={row.platform === 'web'
+                    ? 'dataLayer.push({\n  event: \'' + (row.name || 'event_name') + '\',\n  // parameters here\n});'
+                    : `Pick a platform above or fill in a ${row.platform === 'ios' ? 'Swift' : 'Kotlin'} snippet manually...`}
                   rows={expandedDL === row._key ? 10 : 3}
                   className="w-full px-2.5 py-2 text-xs font-mono border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-gray-400 resize-none transition-all"
                   style={{ fontFamily: 'monospace' }}

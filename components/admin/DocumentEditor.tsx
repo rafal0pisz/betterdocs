@@ -71,6 +71,13 @@ const STATUS_COLORS: Record<string, string> = {
   'To verify':   'bg-blue-50 text-blue-600',
 }
 
+const PLATFORM_LABELS: Record<string, string> = { web: 'Web', ios: 'iOS', android: 'Android' }
+const PLATFORM_COLORS: Record<string, string> = {
+  web: 'bg-gray-100 text-gray-600',
+  ios: 'bg-slate-100 text-slate-700',
+  android: 'bg-emerald-50 text-emerald-700',
+}
+
 
 function slugify(str: string) {
   return str
@@ -107,7 +114,7 @@ export default function DocumentEditor({ document, clientId, isNew = false, admi
     const supabase = createClient()
     supabase.from('structured_events').select('*').eq('document_id', document.id).order('order_index').then(({ data }) => {
       if (data) setEventRows(data.map((e: any) => ({
-        _key: e.id, name: e.name, is_custom: e.is_custom, description: e.description ?? '', parameters: e.parameters ?? '', data_layer: e.data_layer ?? '', status: e.status,
+        _key: e.id, name: e.name, is_custom: e.is_custom, description: e.description ?? '', parameters: e.parameters ?? '', data_layer: e.data_layer ?? '', status: e.status, platform: e.platform ?? 'web',
       })))
     })
     supabase.from('structured_parameters').select('*').eq('document_id', document.id).order('order_index').then(({ data }) => {
@@ -155,7 +162,7 @@ export default function DocumentEditor({ document, clientId, isNew = false, admi
     if (events.length > 0) {
       await supabase.from('structured_events').insert(events.map((e, i) => ({
         client_id: document.client_id, document_id: currentDocId,
-        name: e.name, is_custom: e.is_custom, description: e.description, parameters: e.parameters, data_layer: e.data_layer, status: e.status, order_index: i,
+        name: e.name, is_custom: e.is_custom, description: e.description, parameters: e.parameters, data_layer: e.data_layer, status: e.status, platform: e.platform, order_index: i,
       })))
     }
     if (params.length > 0) {
@@ -315,6 +322,8 @@ export default function DocumentEditor({ document, clientId, isNew = false, admi
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="text-left text-xs font-medium text-gray-500 px-5 py-2.5">Event</th>
                   <th className="text-left text-xs font-medium text-gray-500 px-5 py-2.5">Description</th>
+                  <th className="text-left text-xs font-medium text-gray-500 px-5 py-2.5">Parameters</th>
+                  <th className="text-left text-xs font-medium text-gray-500 px-5 py-2.5 w-20">Platform</th>
                   <th className="text-left text-xs font-medium text-gray-500 px-5 py-2.5 w-32">Status</th>
                 </tr>
               </thead>
@@ -324,6 +333,9 @@ export default function DocumentEditor({ document, clientId, isNew = false, admi
                     <td className="px-5 py-2.5 font-mono text-sm font-medium" style={{ color: '#FF8282' }}>{e.name}</td>
                     <td className="px-5 py-2.5 text-gray-600 text-sm">{e.description || '—'}</td>
                     <td className="px-5 py-2.5 text-gray-500 text-xs font-mono">{e.parameters || '—'}</td>
+                    <td className="px-5 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PLATFORM_COLORS[e.platform]}`}>{PLATFORM_LABELS[e.platform]}</span>
+                    </td>
                     <td className="px-5 py-2.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[e.status]}`}>{e.status}</span>
                     </td>

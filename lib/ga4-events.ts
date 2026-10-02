@@ -129,3 +129,124 @@ export function buildDataLayerSnippet(eventName: string, parameterNames: string[
 
   return `dataLayer.push({\n  event: '${eventName}',\n${lines.join('\n')}${lines.length ? '\n' : ''}${itemsBlock}});`
 }
+
+export type EventPlatform = 'web' | 'ios' | 'android'
+
+// Firebase's mobile SDKs only define named constants for events/parameters
+// that are part of Google's "Recommended events" set, and their casing is
+// irregular (ItemID, not ItemId) - so these are spelled out explicitly rather
+// than derived by a naming-convention guess, which would get some wrong.
+// Anything not listed here (web-only engagement events/params, or fully
+// custom ones) falls back to a plain string literal in the generated snippet.
+const FIREBASE_EVENT_CONSTANTS: Record<string, { ios: string; android: string }> = {
+  view_item_list: { ios: 'AnalyticsEventViewItemList', android: 'VIEW_ITEM_LIST' },
+  select_item: { ios: 'AnalyticsEventSelectItem', android: 'SELECT_ITEM' },
+  view_item: { ios: 'AnalyticsEventViewItem', android: 'VIEW_ITEM' },
+  add_to_cart: { ios: 'AnalyticsEventAddToCart', android: 'ADD_TO_CART' },
+  remove_from_cart: { ios: 'AnalyticsEventRemoveFromCart', android: 'REMOVE_FROM_CART' },
+  view_cart: { ios: 'AnalyticsEventViewCart', android: 'VIEW_CART' },
+  begin_checkout: { ios: 'AnalyticsEventBeginCheckout', android: 'BEGIN_CHECKOUT' },
+  add_shipping_info: { ios: 'AnalyticsEventAddShippingInfo', android: 'ADD_SHIPPING_INFO' },
+  add_payment_info: { ios: 'AnalyticsEventAddPaymentInfo', android: 'ADD_PAYMENT_INFO' },
+  purchase: { ios: 'AnalyticsEventPurchase', android: 'PURCHASE' },
+  refund: { ios: 'AnalyticsEventRefund', android: 'REFUND' },
+  add_to_wishlist: { ios: 'AnalyticsEventAddToWishlist', android: 'ADD_TO_WISHLIST' },
+  view_search_results: { ios: 'AnalyticsEventViewSearchResults', android: 'VIEW_SEARCH_RESULTS' },
+  search: { ios: 'AnalyticsEventSearch', android: 'SEARCH' },
+  share: { ios: 'AnalyticsEventShare', android: 'SHARE' },
+  login: { ios: 'AnalyticsEventLogin', android: 'LOGIN' },
+  sign_up: { ios: 'AnalyticsEventSignUp', android: 'SIGN_UP' },
+  generate_lead: { ios: 'AnalyticsEventGenerateLead', android: 'GENERATE_LEAD' },
+  earn_virtual_currency: { ios: 'AnalyticsEventEarnVirtualCurrency', android: 'EARN_VIRTUAL_CURRENCY' },
+  spend_virtual_currency: { ios: 'AnalyticsEventSpendVirtualCurrency', android: 'SPEND_VIRTUAL_CURRENCY' },
+  // page_view/scroll/click/file_download/video_*/form_* are web "enhanced
+  // measurement" concepts with no direct mobile SDK constant - the nearest
+  // mobile equivalent (e.g. screen_view) isn't a 1:1 match, so these are
+  // intentionally left out and fall back to a string literal.
+}
+
+const FIREBASE_PARAM_CONSTANTS: Record<string, { ios: string; android: string }> = {
+  item_id: { ios: 'AnalyticsParameterItemID', android: 'ITEM_ID' },
+  item_name: { ios: 'AnalyticsParameterItemName', android: 'ITEM_NAME' },
+  item_category: { ios: 'AnalyticsParameterItemCategory', android: 'ITEM_CATEGORY' },
+  item_brand: { ios: 'AnalyticsParameterItemBrand', android: 'ITEM_BRAND' },
+  item_variant: { ios: 'AnalyticsParameterItemVariant', android: 'ITEM_VARIANT' },
+  item_list_id: { ios: 'AnalyticsParameterItemListID', android: 'ITEM_LIST_ID' },
+  item_list_name: { ios: 'AnalyticsParameterItemListName', android: 'ITEM_LIST_NAME' },
+  index: { ios: 'AnalyticsParameterIndex', android: 'INDEX' },
+  items: { ios: 'AnalyticsParameterItems', android: 'ITEMS' },
+  price: { ios: 'AnalyticsParameterPrice', android: 'PRICE' },
+  quantity: { ios: 'AnalyticsParameterQuantity', android: 'QUANTITY' },
+  currency: { ios: 'AnalyticsParameterCurrency', android: 'CURRENCY' },
+  value: { ios: 'AnalyticsParameterValue', android: 'VALUE' },
+  transaction_id: { ios: 'AnalyticsParameterTransactionID', android: 'TRANSACTION_ID' },
+  affiliation: { ios: 'AnalyticsParameterAffiliation', android: 'AFFILIATION' },
+  coupon: { ios: 'AnalyticsParameterCoupon', android: 'COUPON' },
+  shipping: { ios: 'AnalyticsParameterShipping', android: 'SHIPPING' },
+  shipping_tier: { ios: 'AnalyticsParameterShippingTier', android: 'SHIPPING_TIER' },
+  tax: { ios: 'AnalyticsParameterTax', android: 'TAX' },
+  payment_type: { ios: 'AnalyticsParameterPaymentType', android: 'PAYMENT_TYPE' },
+  search_term: { ios: 'AnalyticsParameterSearchTerm', android: 'SEARCH_TERM' },
+  content_type: { ios: 'AnalyticsParameterContentType', android: 'CONTENT_TYPE' },
+  method: { ios: 'AnalyticsParameterMethod', android: 'METHOD' },
+  virtual_currency_name: { ios: 'AnalyticsParameterVirtualCurrencyName', android: 'VIRTUAL_CURRENCY_NAME' },
+  // discount/user_id/session_id/page_*/percent_scroll/content_id/link_*/
+  // file_*/video_*/visible/form_* have no official Firebase Param constant -
+  // fall back to a string literal rather than guessing a name that doesn't exist.
+}
+
+function swiftValue(type: GA4StandardParameter['type'] | undefined): string {
+  if (type === 'number') return '0'
+  if (type === 'boolean') return 'false'
+  return '""'
+}
+
+function kotlinValue(type: GA4StandardParameter['type'] | undefined): string {
+  if (type === 'number') return '0.0'
+  if (type === 'boolean') return 'false'
+  return '""'
+}
+
+export function buildSwiftSnippet(eventName: string, parameterNames: string[]): string {
+  const eventRef = FIREBASE_EVENT_CONSTANTS[eventName]?.ios ?? `"${eventName}"`
+  const scalarParams = parameterNames.filter((name) => name !== 'items')
+  const lines = scalarParams.map((name) => {
+    const ref = FIREBASE_PARAM_CONSTANTS[name]?.ios ?? `"${name}"`
+    return `  ${ref}: ${swiftValue(PARAM_TYPE_BY_NAME[name])},`
+  })
+
+  const hasItems = parameterNames.includes('items')
+  const itemsBlock = hasItems
+    ? `  ${FIREBASE_PARAM_CONSTANTS.items.ios}: [\n    [\n      ${FIREBASE_PARAM_CONSTANTS.item_id.ios}: "",\n      ${FIREBASE_PARAM_CONSTANTS.item_name.ios}: "",\n      ${FIREBASE_PARAM_CONSTANTS.price.ios}: 0,\n      ${FIREBASE_PARAM_CONSTANTS.quantity.ios}: 1\n    ]\n  ],\n`
+    : ''
+
+  if (!lines.length && !itemsBlock) {
+    return `Analytics.logEvent(${eventRef}, parameters: nil)`
+  }
+  return `Analytics.logEvent(${eventRef}, parameters: [\n${lines.join('\n')}${lines.length ? '\n' : ''}${itemsBlock}])`
+}
+
+export function buildKotlinSnippet(eventName: string, parameterNames: string[]): string {
+  const eventRef = FIREBASE_EVENT_CONSTANTS[eventName]
+    ? `FirebaseAnalytics.Event.${FIREBASE_EVENT_CONSTANTS[eventName].android}`
+    : `"${eventName}"`
+  const scalarParams = parameterNames.filter((name) => name !== 'items')
+  const lines = scalarParams.map((name) => {
+    const ref = FIREBASE_PARAM_CONSTANTS[name] ? `FirebaseAnalytics.Param.${FIREBASE_PARAM_CONSTANTS[name].android}` : `"${name}"`
+    return `    param(${ref}, ${kotlinValue(PARAM_TYPE_BY_NAME[name])})`
+  })
+
+  const hasItems = parameterNames.includes('items')
+  const itemsBlock = hasItems
+    ? `    param(FirebaseAnalytics.Param.ITEMS, arrayListOf(\n        Bundle().apply {\n            putString(FirebaseAnalytics.Param.ITEM_ID, "")\n            putString(FirebaseAnalytics.Param.ITEM_NAME, "")\n            putDouble(FirebaseAnalytics.Param.PRICE, 0.0)\n            putLong(FirebaseAnalytics.Param.QUANTITY, 1)\n        }\n    ))\n`
+    : ''
+
+  return `firebaseAnalytics.logEvent(${eventRef}) {\n${lines.join('\n')}${lines.length ? '\n' : ''}${itemsBlock}}`
+}
+
+// Dispatches to the right snippet generator for the event's platform.
+export function buildCodeSnippet(platform: EventPlatform, eventName: string, parameterNames: string[]): string {
+  if (platform === 'ios') return buildSwiftSnippet(eventName, parameterNames)
+  if (platform === 'android') return buildKotlinSnippet(eventName, parameterNames)
+  return buildDataLayerSnippet(eventName, parameterNames)
+}
