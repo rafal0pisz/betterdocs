@@ -41,7 +41,7 @@ export default async function DocumentPage({ params }: Props) {
   ])
 
   return (
-    <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10">
+    <div className="px-4 md:px-10 py-6 md:py-10">
       <div className="flex items-center gap-2 text-xs text-gray-400 mb-6 flex-wrap">
         <Link href={`/portal/${slug}`} className="hover:text-gray-600 transition-colors">Overview</Link>
         <span>/</span>
